@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="HeroData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/hero_data.gd" id="1_hero"]
+
+[resource]
+script = ExtResource("1_hero")
+lineage = 1
+regional_title = "Babaylan"
+max_hp = 100.0
+move_speed = 180.0
+pickup_radius = 60.0
+starting_weapon_id = &"spirit_staff"
+body_color = Color(0.95, 0.8, 0.3, 1)
+id = &"tala"
+display_name = "Tala Amani"
+schema_version = 1
+source = "Visayan (babaylan)"
+notes = "Balanced starter hero. Summons."

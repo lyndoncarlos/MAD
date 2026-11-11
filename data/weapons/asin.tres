@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/weapon_data.gd" id="1_weapon"]
+
+[resource]
+script = ExtResource("1_weapon")
+pattern = 1
+base_damage = 6.0
+cooldown = 0.6
+area = 1.0
+projectile_count = 2
+extra_projectile_every_levels = 3
+hit_radius = 11.0
+orbit_radius = 80.0
+orbit_speed_deg = 200.0
+max_level = 8
+damage_per_level = 0.15
+status_effect = &""
+evolves_with_passive_id = &""
+evolved_weapon_id = &""
+id = &"asin"
+display_name = "Asin"
+schema_version = 1
+source = "Filipino folk tradition (salt as protection)"
+notes = "Orbiting salt. Cooldown is the delay between hits on the same enemy."

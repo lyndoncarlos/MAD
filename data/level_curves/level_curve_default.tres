@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="LevelCurveData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/level_curve_data.gd" id="1_curve"]
+
+[resource]
+script = ExtResource("1_curve")
+base_xp = 5.0
+linear_per_level = 3.0
+quad_per_level = 0.2
+id = &"level_curve_default"
+display_name = "Default level curve (placeholder)"
+schema_version = 1
+source = ""
+notes = "Placeholder numbers. Tune in M2."

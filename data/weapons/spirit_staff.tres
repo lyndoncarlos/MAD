@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/weapon_data.gd" id="1_weapon"]
+
+[resource]
+script = ExtResource("1_weapon")
+pattern = 0
+base_damage = 10.0
+cooldown = 0.9
+area = 1.0
+projectile_count = 1
+extra_projectile_every_levels = 3
+duration = 1.4
+projectile_speed = 420.0
+hit_radius = 9.0
+pierce = 0
+target_range = 520.0
+max_level = 8
+damage_per_level = 0.15
+status_effect = &""
+evolves_with_passive_id = &"passive_agimat"
+evolved_weapon_id = &"spirit_staff"
+id = &"spirit_staff"
+display_name = "Spirit Staff"
+schema_version = 1
+source = "Visayan (babaylan)"
+notes = "Fires at the nearest enemy. evolved_weapon_id points to itself until the evolved weapon exists."

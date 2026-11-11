@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="UpgradeData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/upgrade_data.gd" id="1_upgrade"]
+
+[resource]
+script = ExtResource("1_upgrade")
+kind = 0
+stat = &"damage_mult"
+value_per_level = 0.1
+max_level = 5
+id = &"passive_agimat"
+display_name = "Agimat"
+schema_version = 1
+source = "Filipino (anting-anting tradition)"
+notes = "Passive: increases damage."

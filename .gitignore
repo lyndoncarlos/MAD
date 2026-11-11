@@ -1,0 +1,22 @@
+# Godot 4
+.godot/
+*.translation
+export_credentials.cfg
+.mono/
+data_*/
+/android/
+
+# Exports and builds
+/build/
+/export/
+*.exe
+*.pck
+*.apk
+*.aab
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp

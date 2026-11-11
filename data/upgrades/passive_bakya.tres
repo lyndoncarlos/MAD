@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="UpgradeData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/upgrade_data.gd" id="1_upgrade"]
+
+[resource]
+script = ExtResource("1_upgrade")
+kind = 0
+stat = &"move_speed_mult"
+value_per_level = 0.08
+max_level = 5
+id = &"passive_bakya"
+display_name = "Bakya"
+schema_version = 1
+source = "Filipino (wooden clogs)"
+notes = "Passive: increases move speed."
