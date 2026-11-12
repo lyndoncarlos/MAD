@@ -8,7 +8,7 @@ static func nearest_enemy(tree: SceneTree, origin: Vector2, max_range: float) ->
 	var best_dist_sq: float = max_range * max_range
 	for node in tree.get_nodes_in_group(&"enemies"):
 		var enemy := node as Enemy
-		if enemy == null or enemy.is_dying:
+		if enemy == null or not enemy.is_targetable():
 			continue
 		var dist_sq: float = origin.distance_squared_to(enemy.global_position)
 		if dist_sq < best_dist_sq:

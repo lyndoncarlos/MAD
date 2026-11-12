@@ -29,7 +29,7 @@ func _physics_process(delta: float) -> void:
 		return
 	for node in get_tree().get_nodes_in_group(&"enemies"):
 		var enemy := node as Enemy
-		if enemy == null or enemy.is_dying:
+		if enemy == null or not enemy.is_targetable():
 			continue
 		var enemy_id: int = enemy.get_instance_id()
 		if _already_hit.has(enemy_id):

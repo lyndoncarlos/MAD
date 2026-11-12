@@ -38,13 +38,14 @@ func record_build_choice(kind: StringName, item_id: StringName, level: int) -> v
 
 
 ## Ends the run and writes the log. Returns the file path ("" if nothing was written).
-func end_run(cause_of_death: String, level: int = 1, kills: int = 0) -> String:
+func end_run(cause_of_death: String, level: int = 1, kills: int = 0, extra: Dictionary = {}) -> String:
 	if not active:
 		return ""
 	active = false
 	_run["cause_of_death"] = cause_of_death
 	_run["level"] = level
 	_run["kills"] = kills
+	_run.merge(extra, true)
 	_run["time_survived_seconds"] = snappedf((Time.get_ticks_msec() - _started_msec) / 1000.0, 0.1)
 	return _write_log()
 

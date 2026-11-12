@@ -135,6 +135,17 @@ static func _check_enemy(enemy: EnemyData, path: String, problems: Array[String]
 		problems.append("%s: contact_damage must be >= 0" % path)
 	if enemy.xp_value < 0.0:
 		problems.append("%s: xp_value must be >= 0" % path)
+	if enemy.spawn_style == EnemyData.SpawnStyle.BURROW:
+		if enemy.burrow_min_distance <= 0.0:
+			problems.append("%s: burrow_min_distance must be > 0" % path)
+		if enemy.burrow_max_distance < enemy.burrow_min_distance:
+			problems.append("%s: burrow_max_distance must be >= burrow_min_distance" % path)
+		if enemy.burrow_telegraph_seconds < 0.0:
+			problems.append("%s: burrow_telegraph_seconds must be >= 0" % path)
+	if enemy.emerge_burst_seconds < 0.0:
+		problems.append("%s: emerge_burst_seconds must be >= 0" % path)
+	if enemy.emerge_speed_mult < 0.0:
+		problems.append("%s: emerge_speed_mult must be >= 0" % path)
 
 
 static func _check_upgrade(upgrade: UpgradeData, path: String, problems: Array[String]) -> void:
@@ -147,6 +158,14 @@ static func _check_upgrade(upgrade: UpgradeData, path: String, problems: Array[S
 static func _check_curve(curve: SpawnCurveData, path: String, ids: Dictionary, problems: Array[String]) -> void:
 	if curve.duration_minutes <= 0.0:
 		problems.append("%s: duration_minutes must be > 0" % path)
+	if curve.level_bonus_per_level < 0.0:
+		problems.append("%s: level_bonus_per_level must be >= 0" % path)
+	if curve.power_bonus < 0.0:
+		problems.append("%s: power_bonus must be >= 0" % path)
+	if curve.min_pressure <= 0.0:
+		problems.append("%s: min_pressure must be > 0" % path)
+	if curve.max_pressure < curve.min_pressure:
+		problems.append("%s: max_pressure must be >= min_pressure" % path)
 	if curve.waves.is_empty():
 		problems.append("%s: spawn curve has no waves" % path)
 	for i in curve.waves.size():
@@ -162,6 +181,14 @@ static func _check_curve(curve: SpawnCurveData, path: String, ids: Dictionary, p
 			problems.append("%s: wave %d spawns_per_second must be > 0" % [path, i])
 		if wave.max_alive < 1:
 			problems.append("%s: wave %d max_alive must be >= 1" % [path, i])
+		if wave.end_spawns_per_second != -1.0 and wave.end_spawns_per_second <= 0.0:
+			problems.append("%s: wave %d end_spawns_per_second must be > 0 (or -1 for 'same')" % [path, i])
+		if wave.end_max_alive != -1 and wave.end_max_alive < 1:
+			problems.append("%s: wave %d end_max_alive must be >= 1 (or -1 for 'same')" % [path, i])
+		if wave.pack_size < 1:
+			problems.append("%s: wave %d pack_size must be >= 1" % [path, i])
+		if wave.end_pack_size != -1 and wave.end_pack_size < 1:
+			problems.append("%s: wave %d end_pack_size must be >= 1 (or -1 for 'same')" % [path, i])
 		if not _has_id(ids, &"enemies", wave.enemy_id):
 			problems.append("%s: wave %d enemy_id '%s' not found in enemies" % [path, i, str(wave.enemy_id)])
 

@@ -1,30 +1,66 @@
-[gd_resource type="Resource" script_class="SpawnCurveData" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="SpawnCurveData" load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/spawn_curve_data.gd" id="1_curve"]
 [ext_resource type="Script" path="res://scripts/data/spawn_wave.gd" id="2_wave"]
 
-[sub_resource type="Resource" id="Resource_wave_a"]
+[sub_resource type="Resource" id="Resource_dusk"]
 script = ExtResource("2_wave")
 start_minute = 0.0
-end_minute = 4.0
+end_minute = 3.0
 enemy_id = &"tiyanak"
-spawns_per_second = 1.0
-max_alive = 40
+spawns_per_second = 0.5
+end_spawns_per_second = 0.8
+max_alive = 10
+end_max_alive = 25
+pack_size = 1
+end_pack_size = 1
 
-[sub_resource type="Resource" id="Resource_wave_b"]
+[sub_resource type="Resource" id="Resource_night"]
 script = ExtResource("2_wave")
-start_minute = 4.0
-end_minute = 10.0
+start_minute = 3.0
+end_minute = 8.0
 enemy_id = &"tiyanak"
-spawns_per_second = 2.5
-max_alive = 120
+spawns_per_second = 0.8
+end_spawns_per_second = 1.1
+max_alive = 25
+end_max_alive = 50
+pack_size = 1
+end_pack_size = 2
+
+[sub_resource type="Resource" id="Resource_midnight"]
+script = ExtResource("2_wave")
+start_minute = 8.0
+end_minute = 14.0
+enemy_id = &"tiyanak"
+spawns_per_second = 1.1
+end_spawns_per_second = 1.4
+max_alive = 50
+end_max_alive = 80
+pack_size = 2
+end_pack_size = 3
+
+[sub_resource type="Resource" id="Resource_predawn"]
+script = ExtResource("2_wave")
+start_minute = 14.0
+end_minute = 20.0
+enemy_id = &"tiyanak"
+spawns_per_second = 1.4
+end_spawns_per_second = 1.7
+max_alive = 80
+end_max_alive = 110
+pack_size = 3
+end_pack_size = 4
 
 [resource]
 script = ExtResource("1_curve")
 duration_minutes = 20.0
-waves = Array[ExtResource("2_wave")]([SubResource("Resource_wave_a"), SubResource("Resource_wave_b")])
+waves = Array[ExtResource("2_wave")]([SubResource("Resource_dusk"), SubResource("Resource_night"), SubResource("Resource_midnight"), SubResource("Resource_predawn")])
+level_bonus_per_level = 0.02
+power_bonus = 0.15
+min_pressure = 1.0
+max_pressure = 2.0
 id = &"chapter_01"
-display_name = "Chapter 1 spawn curve (placeholder)"
+display_name = "Chapter 1 spawn curve (placeholder tuning)"
 schema_version = 1
 source = ""
-notes = "Two placeholder waves. Real curve is built in M2."
+notes = "Tiyanak only. Caps are sized for the M1 prototype (no pooling yet); raise them in M2."

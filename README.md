@@ -32,6 +32,11 @@ godot --headless --script res://tests/run_tests.gd
 | `test_level_up_pool` | 3 unique options, no maxed items, slot cap, reproducible from a seed, heal fallback |
 | `test_spawn_planner` | spawn rate follows the curve, alive cap respected, quiet outside wave windows |
 | `test_weapon_math` | damage and projectile-count scaling per level |
+| `test_enemy_motion` | the Tiyanak burst starts fast, ends at normal speed, never speeds up again |
+| `test_spawn_planner` | spawn rate, ramps, packs, alive caps, pressure scaling, wave windows |
+| `test_spawn_pressure` | pressure rises with level and build strength, is clamped, handles bad inputs |
+| `test_weapon_dps` | DPS estimates count damage upgrades and ignore movement/pickup passives |
+| `test_spawn_curve_shape` | the shipped spawn curve has no gaps, jumps or cap blow-ups |
 
 ## M1 Jira stories mapped to files
 | Story | Where |
@@ -42,6 +47,21 @@ godot --headless --script res://tests/run_tests.gd
 | Sinag and level-up | `scripts/entities/sinag_pickup.gd`, `scripts/systems/run_state.gd`, `level_up_pool.gd`, `scripts/ui/level_up_menu.gd`, `data/level_curves/*` |
 | Game-over screen | `scripts/ui/game_over_screen.gd` |
 | Playtest check #1 | `docs/FUN_CHECK_1.md` |
+
+## Tiyanak behaviour (burrow, burst, chase)
+A Tiyanak does not walk in from off-screen. It appears as a dirt mound 200-420 px from you and
+**warns for 0.9 s** (harmless and untargetable while burrowed). It then **lunges in a locked direction**
+at 3.5x speed, easing back to normal speed over 0.7 s, and chases from there.
+Because the direction is locked when it emerges, a moving player can dodge the lunge.
+
+All of it is data in `data/enemies/tiyanak.tres`, so other enemies can reuse it:
+`spawn_style` (RING or BURROW), `burrow_min_distance`, `burrow_max_distance`, `burrow_telegraph_seconds`,
+`emerge_speed_mult`, `emerge_burst_seconds`. Set `spawn_style = 0` for the old walk-in behaviour.
+
+## Spawn scaling
+Spawn rate, alive cap and pack size ramp over time, and pressure (level plus the estimated damage of your
+upgrades) scales rate and cap. The HUD shows `Alive` and `Pressure`; run logs record peaks for tuning.
+See `docs/SPAWN_TUNING.md` for the formula, tables and a tuning guide.
 
 ## What is deliberately simple (M2 fixes it)
 - Enemies, projectiles and pickups are plain nodes found with `get_nodes_in_group`. This is fine for dozens, **not** hundreds.

@@ -16,6 +16,7 @@ var pending_level_ups: int = 0
 var curve: LevelCurveData
 
 var _weapons: Dictionary = {}   # id -> level
+var _weapon_data: Dictionary = {}  # id -> WeaponData (only for weapons added via set_weapon)
 var _passives: Dictionary = {}  # id -> { "data": UpgradeData, "level": int }
 
 
@@ -47,6 +48,24 @@ func weapon_level(id: StringName) -> int:
 
 func set_weapon_level(id: StringName, new_level: int) -> void:
 	_weapons[id] = new_level
+
+
+## Like set_weapon_level, but also remembers the data so estimated_dps() can count it.
+func set_weapon(data: WeaponData, new_level: int) -> void:
+	_weapons[data.id] = new_level
+	_weapon_data[data.id] = data
+
+
+## Rough total damage per second of owned weapons (those added with set_weapon).
+## Drives spawn pressure. Movement and pickup passives do not count: they do not
+## make the player kill faster.
+func estimated_dps() -> float:
+	var total := 0.0
+	var damage_mult: float = stat_mult(&"damage_mult")
+	for id in _weapons:
+		if _weapon_data.has(id):
+			total += WeaponMath.estimated_dps(_weapon_data[id], _weapons[id], damage_mult)
+	return total
 
 
 func weapon_count() -> int:

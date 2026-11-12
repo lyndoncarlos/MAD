@@ -28,7 +28,7 @@ func _physics_process(delta: float) -> void:
 	var damage: float = current_damage()
 	for node in get_tree().get_nodes_in_group(&"enemies"):
 		var enemy := node as Enemy
-		if enemy == null or enemy.is_dying:
+		if enemy == null or not enemy.is_targetable():
 			continue
 		var enemy_id: int = enemy.get_instance_id()
 		if _clock - _last_hit.get(enemy_id, -999.0) < data.cooldown:

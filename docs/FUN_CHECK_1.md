@@ -22,8 +22,11 @@ If not, fix the core loop now. Content, art and meta-progression will not rescue
 - Was there a moment of "ooh, that upgrade changed things"? Which one?
 - Did level-ups arrive often enough to feel rewarding? Too fast? Too slow?
 - Did any damage feel unfair (hits you couldn't avoid)?
+- Could you read the Tiyanak's warning mound and dodge the lunge? Was the warning too short, too long, or too subtle?
 - Did the two weapons feel different, or like the same weapon with different graphics?
 - What felt dead (no feedback, no tension, nothing to decide)?
+- Watch the HUD `Alive` and `Pressure` values. Did the swarm grow at a pace that matched your power?
+  Was there a moment where it suddenly got too easy, or too crowded? Note the minute and the pressure.
 
 ## Decision rule
 - **Go:** you played at least one run to the end without wanting to quit, and can name one moment that felt good.

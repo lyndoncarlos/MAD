@@ -23,16 +23,12 @@ func set_level(new_level: int) -> void:
 
 ## Per-hit damage: base * level scaling * passive damage multiplier.
 func current_damage() -> float:
-	var level_mult: float = 1.0 + data.damage_per_level * float(level - 1)
-	return data.base_damage * level_mult * run_state.stat_mult(&"damage_mult")
+	return WeaponMath.damage(data, level, run_state.stat_mult(&"damage_mult"))
 
 
 ## Projectiles per volley (or orbs), including the "+1 every N levels" bonus.
 func current_projectile_count() -> int:
-	var extra := 0
-	if data.extra_projectile_every_levels > 0:
-		extra = floori(float(level - 1) / float(data.extra_projectile_every_levels))
-	return data.projectile_count + extra
+	return WeaponMath.projectile_count(data, level)
 
 
 ## Override in subclasses to react to level changes.

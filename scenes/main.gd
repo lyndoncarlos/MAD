@@ -10,6 +10,8 @@ const HERO_SCENE: PackedScene = preload("res://scenes/heroes/hero.tscn")
 const MAP_SCENE: PackedScene = preload("res://scenes/maps/test_map.tscn")
 const MAP_HALF_SIZE := 2048.0
 const SPAWN_RING_RADIUS := 760.0
+## How far pack members may scatter from the pack's anchor point (pixels).
+const PACK_SPREAD := 70.0
 const REST_HEAL := 30.0
 const LEVEL_CURVE_ID := &"level_curve_default"
 const SPAWN_CURVE_ID := &"chapter_01"
@@ -17,10 +19,15 @@ const SPAWN_CURVE_ID := &"chapter_01"
 @export var hero_id: StringName = &"tala"
 
 var run_time: float = 0.0
+## Current spawn pressure multiplier (1.0 = as authored). Shown on the HUD for tuning.
+var pressure: float = 1.0
 var hero: Hero
 var run_state: RunState
 
 var _planner: SpawnPlanner
+var _spawn_curve: SpawnCurveData
+var _baseline_dps: float = 1.0
+var _peak_alive: int = 0
 var _hud: Hud
 var _level_up_menu: LevelUpMenu
 var _game_over_screen: GameOverScreen
@@ -43,6 +50,7 @@ func _ready() -> void:
 
 	run_state = RunState.new(level_curve)
 	_planner = SpawnPlanner.new(spawn_curve)
+	_spawn_curve = spawn_curve
 	_weapon_pool = _weapons_for_pool()
 	_passive_pool = _passives_for_pool()
 	RunLogger.start_run(hero_id, run_seed)
@@ -53,6 +61,7 @@ func _ready() -> void:
 	add_child(hero)
 	hero.died.connect(_on_hero_died)
 	_grant_weapon(hero_data.starting_weapon_id, 1)
+	_baseline_dps = maxf(1.0, run_state.estimated_dps())
 
 	_build_ui()
 
@@ -64,8 +73,14 @@ func _physics_process(delta: float) -> void:
 	hero.position = hero.position.clamp(
 		Vector2(-MAP_HALF_SIZE, -MAP_HALF_SIZE), Vector2(MAP_HALF_SIZE, MAP_HALF_SIZE)
 	)
-	for enemy_id in _planner.plan(delta, run_time, _alive_counts()):
-		_spawn_enemy(enemy_id)
+	var alive: Dictionary = _alive_counts()
+	var total_alive := 0
+	for count in alive.values():
+		total_alive += count
+	_peak_alive = maxi(_peak_alive, total_alive)
+	pressure = SpawnPressure.compute(run_state.level, run_state.estimated_dps(), _baseline_dps, _spawn_curve)
+	for order in _planner.plan(delta, run_time, alive, pressure):
+		_spawn_order(order)
 
 
 # ---------------------------------------------------------------- spawning
@@ -80,15 +95,32 @@ func _alive_counts() -> Dictionary:
 	return counts
 
 
-func _spawn_enemy(enemy_id: StringName) -> void:
-	var enemy_data := DataRegistry.get_data(&"enemies", enemy_id) as EnemyData
+func _spawn_order(order: SpawnOrder) -> void:
+	var enemy_data := DataRegistry.get_data(&"enemies", order.enemy_id) as EnemyData
 	if enemy_data == null:
 		return
+	# One anchor point per pack; members are scattered around it.
 	var angle: float = RngService.float_range(0.0, TAU, RunRng.SPAWN)
-	var position_on_ring: Vector2 = hero.global_position + SpawnPlanner.ring_offset(angle, SPAWN_RING_RADIUS)
+	var distance: float = SPAWN_RING_RADIUS
+	if enemy_data.spawn_style == EnemyData.SpawnStyle.BURROW:
+		distance = RngService.float_range(
+			enemy_data.burrow_min_distance, enemy_data.burrow_max_distance, RunRng.SPAWN
+		)
+	var anchor: Vector2 = hero.global_position + SpawnPlanner.ring_offset(angle, distance)
+	for i in order.count:
+		var offset := Vector2.ZERO
+		if order.count > 1:
+			offset = Vector2(
+				RngService.float_range(-PACK_SPREAD, PACK_SPREAD, RunRng.SPAWN),
+				RngService.float_range(-PACK_SPREAD, PACK_SPREAD, RunRng.SPAWN)
+			)
+		_spawn_enemy(enemy_data, anchor + offset)
+
+
+func _spawn_enemy(enemy_data: EnemyData, where: Vector2) -> void:
 	var enemy := Enemy.new()
 	enemy.setup(enemy_data, hero)
-	enemy.position = position_on_ring.clamp(
+	enemy.position = where.clamp(
 		Vector2(-MAP_HALF_SIZE, -MAP_HALF_SIZE), Vector2(MAP_HALF_SIZE, MAP_HALF_SIZE)
 	)
 	enemy.died.connect(_on_enemy_died)
@@ -155,7 +187,7 @@ func _grant_weapon(weapon_id: StringName, level: int) -> void:
 	var weapon_data := DataRegistry.get_data(&"weapons", weapon_id) as WeaponData
 	if weapon_data == null:
 		return
-	run_state.set_weapon_level(weapon_id, level)
+	run_state.set_weapon(weapon_data, level)
 	hero.set_weapon(weapon_data, level, run_state)
 	RunLogger.record_build_choice(&"weapon", weapon_id, level)
 
@@ -192,7 +224,12 @@ func _on_hero_died() -> void:
 	var cause: String = str(hero.last_damage_source)
 	if cause.is_empty():
 		cause = "unknown"
-	RunLogger.end_run(cause, run_state.level, run_state.kills)
+	RunLogger.end_run(cause, run_state.level, run_state.kills, {
+		"peak_alive": _peak_alive,
+		"final_pressure": snappedf(pressure, 0.01),
+		"estimated_dps": snappedf(run_state.estimated_dps(), 0.1),
+		"baseline_dps": snappedf(_baseline_dps, 0.1),
+	})
 	get_tree().paused = true
 	_game_over_screen.present({
 		"cause": cause,
