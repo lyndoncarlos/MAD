@@ -9,6 +9,10 @@ var _hp_bar: ProgressBar
 var _level_label: Label
 var _timer_label: Label
 var _info_label: Label
+var _phase_label: Label
+var _moon_bar: ProgressBar
+var _banner_label: Label
+var _build_label: Label
 
 
 func _init() -> void:
@@ -51,6 +55,36 @@ func _ready() -> void:
 	add_child(_info_label)
 
 
+	_phase_label = Label.new()
+	_phase_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_phase_label.custom_minimum_size = Vector2(240, 0)
+	add_child(_phase_label)
+	_phase_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_phase_label.offset_top = 52.0
+
+	_moon_bar = ProgressBar.new()
+	_moon_bar.show_percentage = false
+	_moon_bar.min_value = 0.0
+	_moon_bar.max_value = 1.0
+	_moon_bar.custom_minimum_size = Vector2(240, 10)
+	add_child(_moon_bar)
+	_moon_bar.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_moon_bar.offset_top = 80.0
+	_moon_bar.offset_bottom = 90.0
+
+	_banner_label = Label.new()
+	_banner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_banner_label.add_theme_font_size_override(&"font_size", 26)
+	_banner_label.custom_minimum_size = Vector2(700, 0)
+	add_child(_banner_label)
+	_banner_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_banner_label.offset_top = 110.0
+
+	_build_label = Label.new()
+	_build_label.position = Vector2(12, 100)
+	add_child(_build_label)
+
+
 func setup(world: RunWorld) -> void:
 	_world = world
 
@@ -71,3 +105,13 @@ func _process(_delta: float) -> void:
 		state.kills, _world.enemies.alive_count(), _world.pressure,
 		RngService.current_seed, Engine.get_frames_per_second()
 	]
+
+	var director: RunDirector = _world.director
+	_phase_label.text = "%s   (%s)" % [
+		director.phase_name(_world.run_time),
+		"BLOOD MOON %ds" % ceili(director.blood_moon_left) if director.is_blood_moon() else "Blood Moon meter",
+	]
+	_moon_bar.value = 1.0 if director.is_blood_moon() else director.meter
+	_moon_bar.modulate = Color(1.0, 0.2, 0.2) if director.is_blood_moon() else Color(0.7, 0.3, 0.4)
+	_banner_label.text = _world.banner()
+	_build_label.text = state.build_summary()

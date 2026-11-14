@@ -95,3 +95,14 @@ func stat_mult(stat: StringName) -> float:
 		if upgrade.stat == stat:
 			total += upgrade.value_per_level * float(entry["level"])
 	return total
+
+
+## One-line-per-item description of the build, for the HUD.
+func build_summary() -> String:
+	var lines: PackedStringArray = []
+	for id in _weapons:
+		lines.append("%s Lv%d" % [id, _weapons[id]])
+	for id in _passives:
+		lines.append("%s Lv%d" % [id, _passives[id]["level"]])
+	return "
+".join(lines)

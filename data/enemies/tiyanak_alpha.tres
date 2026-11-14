@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="1_enemy"]
+
+[resource]
+script = ExtResource("1_enemy")
+max_hp = 260.0
+move_speed = 62.0
+contact_damage = 9.0
+xp_value = 12.0
+is_elite = true
+pacifiable = false
+radius = 26.0
+body_color = Color(0.7, 0.1, 0.25, 1)
+spawn_style = 0
+burrow_min_distance = 200.0
+burrow_max_distance = 420.0
+burrow_telegraph_seconds = 0.9
+emerge_speed_mult = 1.0
+emerge_burst_seconds = 0.0
+id = &"tiyanak_alpha"
+display_name = "Tiyanak Alpha"
+schema_version = 1
+source = "Tagalog"
+notes = "Elite: the pack's matriarch. Walks in from off-screen, tanky, hits hard. Always drops a chest. Placeholder stats."

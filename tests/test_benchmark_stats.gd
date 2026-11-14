@@ -25,29 +25,50 @@ func run() -> Array:
 	for i in 99:
 		frames.append(16.67)
 	frames.append(40.0)
-	var summary: Dictionary = BenchmarkStats.summarize(frames, PackedFloat32Array([5.0, 7.0]), PackedFloat32Array([2.0, 4.0]))
+	var summary: Dictionary = BenchmarkStats.summarize_frames(frames)
 	if summary["frames"] != 100:
 		failures.append("frames should be 100")
 	if absf(float(summary["avg_fps"]) - 59.0) > 1.5:
 		failures.append("avg fps should be about 59, got %s" % summary["avg_fps"])
 	if absf(float(summary["max_frame_ms"]) - 40.0) > 0.01:
 		failures.append("max frame should be 40 ms")
-	if absf(float(summary["avg_process_ms"]) - 6.0) > 0.01 or absf(float(summary["avg_physics_ms"]) - 3.0) > 0.01:
-		failures.append("average process/physics ms wrong: %s / %s" % [summary["avg_process_ms"], summary["avg_physics_ms"]])
-	if BenchmarkStats.verdict(summary) != "PASS":  # p99 = 16.67 (the single 40 ms hitch is the 100th sample)
+	if BenchmarkStats.verdict(summary) != "PASS":  # no sim_speed_ratio given: treated as real time
 		failures.append("a steady 60 fps run with one hitch should pass, got %s (p99 %s)" % [BenchmarkStats.verdict(summary), summary["p99_frame_ms"]])
 
 	# Sustained slow frames must fail.
 	var slow := PackedFloat32Array()
 	for i in 100:
 		slow.append(40.0)
-	var slow_summary: Dictionary = BenchmarkStats.summarize(slow, PackedFloat32Array(), PackedFloat32Array())
-	if BenchmarkStats.verdict(slow_summary) != "FAIL":
+	if BenchmarkStats.verdict(BenchmarkStats.summarize_frames(slow)) != "FAIL":
 		failures.append("a steady 25 fps run must fail")
 
 	# Empty input must not divide by zero.
-	var empty: Dictionary = BenchmarkStats.summarize(PackedFloat32Array(), PackedFloat32Array(), PackedFloat32Array())
+	var empty: Dictionary = BenchmarkStats.summarize_frames(PackedFloat32Array())
 	if empty["frames"] != 0 or empty["avg_fps"] != 0.0:
 		failures.append("empty samples should give zeros, not errors")
+
+	# Phase stats: average and worst of a list of timings.
+	var phase: Dictionary = BenchmarkStats.avg_max(PackedFloat32Array([2.0, 4.0, 6.0]))
+	if absf(float(phase["avg"]) - 4.0) > 0.001 or absf(float(phase["max"]) - 6.0) > 0.001:
+		failures.append("avg_max([2,4,6]) should be 4 and 6, got %s" % phase)
+	var none: Dictionary = BenchmarkStats.avg_max(PackedFloat32Array())
+	if none["avg"] != 0.0 or none["max"] != 0.0:
+		failures.append("avg_max of nothing should be zeros")
+
+	# Simulation speed: 60 ticks/s for 20 s should be 1200 ticks.
+	if absf(BenchmarkStats.sim_speed_ratio(1200, 20.0, 60.0) - 1.0) > 0.001:
+		failures.append("1200 ticks in 20 s at 60 tps should be ratio 1.0")
+	if absf(BenchmarkStats.sim_speed_ratio(600, 20.0, 60.0) - 0.5) > 0.001:
+		failures.append("600 ticks in 20 s at 60 tps should be ratio 0.5")
+	if BenchmarkStats.sim_speed_ratio(100, 0.0, 60.0) != 0.0:
+		failures.append("zero measured time should give ratio 0, not a crash")
+
+	# A fast-looking run that fell behind real time (slow motion) must still FAIL.
+	var slow_motion := {"avg_fps": 120.0, "p99_frame_ms": 9.0, "sim_speed_ratio": 0.5}
+	if BenchmarkStats.verdict(slow_motion) != "FAIL":
+		failures.append("a run with sim speed 0.5 must fail even at high fps")
+	var real_time := {"avg_fps": 120.0, "p99_frame_ms": 9.0, "sim_speed_ratio": 0.99}
+	if BenchmarkStats.verdict(real_time) != "PASS":
+		failures.append("a run at sim speed 0.99 with good frames should pass")
 
 	return failures

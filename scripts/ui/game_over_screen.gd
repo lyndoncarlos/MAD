@@ -5,6 +5,7 @@ extends CanvasLayer
 signal restart_requested(same_seed: bool)
 
 var _summary: Label
+var _title: Label
 
 
 func _init() -> void:
@@ -27,11 +28,11 @@ func _ready() -> void:
 	column.add_theme_constant_override(&"separation", 20)
 	center.add_child(column)
 
-	var title := Label.new()
-	title.text = "The night takes you"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override(&"font_size", 36)
-	column.add_child(title)
+	_title = Label.new()
+	_title.text = "The night takes you"
+	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_title.add_theme_font_size_override(&"font_size", 36)
+	column.add_child(_title)
 
 	_summary = Label.new()
 	_summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -51,8 +52,9 @@ func _ready() -> void:
 	column.add_child(new_button)
 
 
-## summary keys: cause (String), time (float seconds), level (int), kills (int), seed (int).
+## summary keys: title (String, optional), cause (String), time (float seconds), level (int), kills (int), seed (int).
 func present(summary: Dictionary) -> void:
+	_title.text = summary.get("title", "The night takes you")
 	var total_seconds: int = int(summary["time"])
 	_summary.text = "Felled by: %s\nSurvived %02d:%02d   Level %d   Kills %d\nSeed %d" % [
 		summary["cause"], floori(total_seconds / 60.0), total_seconds % 60,

@@ -39,9 +39,9 @@ func _ready() -> void:
 	column.add_child(_row)
 
 
-func present(options: Array[Dictionary], new_level: int) -> void:
+func present(options: Array[Dictionary], new_level: int, title_override: String = "") -> void:
 	_options = options
-	_title.text = "Level %d! Choose one" % new_level
+	_title.text = title_override if not title_override.is_empty() else "Level %d! Choose one" % new_level
 	for child in _row.get_children():
 		_row.remove_child(child)
 		child.queue_free()

@@ -4,6 +4,7 @@ extends Node2D
 ## kill -> Sinag drops -> pick up -> level up -> choose upgrade -> repeat -> die -> restart.
 ##
 ## Fixed seed:  godot --path . -- --seed=12345
+## Jump ahead (testing): godot --path . -- --start-minute=19.9
 ## The world root must stay at the origin (projectiles use world coordinates).
 
 const HERO_SCENE: PackedScene = preload("res://scenes/heroes/hero.tscn")
@@ -15,6 +16,8 @@ const PACK_SPREAD := 70.0
 const REST_HEAL := 30.0
 const LEVEL_CURVE_ID := &"level_curve_default"
 const SPAWN_CURVE_ID := &"chapter_01"
+const ELITE_ID := &"tiyanak_alpha"
+const HERB_HEAL := 25.0
 
 @export var hero_id: StringName = &"tala"
 
@@ -24,6 +27,8 @@ var pressure: float = 1.0
 var hero: Hero
 var enemies: EnemyManager
 var run_state: RunState
+var director: RunDirector = RunDirector.new()
+var chests_opened: int = 0
 
 var _planner: SpawnPlanner
 var _spawn_curve: SpawnCurveData
@@ -36,6 +41,9 @@ var _weapon_pool: Array = []
 var _passive_pool: Array = []
 var _menu_open: bool = false
 var _game_over: bool = false
+var _chests_pending: int = 0
+var _banner_text: String = ""
+var _banner_left: float = 0.0
 
 
 func _ready() -> void:
@@ -70,12 +78,20 @@ func _ready() -> void:
 	_baseline_dps = maxf(1.0, run_state.estimated_dps())
 
 	_build_ui()
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--start-minute="):
+			run_time = arg.trim_prefix("--start-minute=").to_float() * 60.0  # testing aid
 
 
 func _physics_process(delta: float) -> void:
 	if hero == null or _game_over:
 		return
 	run_time += delta
+	if director.tick(delta):
+		_show_banner("The Blood Moon sets", 2.0)
+	if director.is_complete(run_time):
+		_on_run_won()
+		return
 	hero.position = hero.position.clamp(
 		Vector2(-MAP_HALF_SIZE, -MAP_HALF_SIZE), Vector2(MAP_HALF_SIZE, MAP_HALF_SIZE)
 	)
@@ -85,8 +101,13 @@ func _physics_process(delta: float) -> void:
 		total_alive += count
 	_peak_alive = maxi(_peak_alive, total_alive)
 	pressure = SpawnPressure.compute(run_state.level, run_state.estimated_dps(), _baseline_dps, _spawn_curve)
+	pressure *= director.spawn_mult()
 	for order in _planner.plan(delta, run_time, alive, pressure):
 		_spawn_order(order)
+	for i in director.take_due_elites(run_time):
+		_spawn_elite()
+	if _banner_left > 0.0:
+		_banner_left -= delta
 
 
 # ---------------------------------------------------------------- spawning
@@ -117,6 +138,27 @@ func _spawn_order(order: SpawnOrder) -> void:
 		_spawn_enemy(enemy_data, anchor + offset)
 
 
+func _spawn_elite() -> void:
+	var elite_data := DataRegistry.get_data(&"enemies", ELITE_ID) as EnemyData
+	if elite_data == null:
+		return
+	var angle: float = RngService.float_range(0.0, TAU, RunRng.SPAWN)
+	_spawn_enemy(elite_data, hero.global_position + SpawnPlanner.ring_offset(angle, SPAWN_RING_RADIUS))
+	_show_banner("An elite approaches: %s" % elite_data.display_name, 3.0)
+
+
+func _show_banner(text: String, seconds: float) -> void:
+	_banner_text = text
+	_banner_left = seconds
+
+
+## Text for the HUD banner ("" when nothing to say).
+func banner() -> String:
+	if _banner_left <= 0.0:
+		return ""
+	return _banner_text
+
+
 func _spawn_enemy(enemy_data: EnemyData, where: Vector2) -> void:
 	enemies.spawn(enemy_data, where.clamp(
 		Vector2(-MAP_HALF_SIZE, -MAP_HALF_SIZE), Vector2(MAP_HALF_SIZE, MAP_HALF_SIZE)
@@ -125,8 +167,10 @@ func _spawn_enemy(enemy_data: EnemyData, where: Vector2) -> void:
 
 func _on_enemy_died(enemy: Enemy) -> void:
 	run_state.kills += 1
+	if director.add_kills(1):
+		_show_banner("BLOOD MOON! Faster hordes, double Sinag", 3.0)
 	var pickup := SinagPickup.new()
-	pickup.value = enemy.data.xp_value
+	pickup.value = enemy.data.xp_value * director.xp_mult()
 	pickup.hero = hero
 	# Drop scatter uses the LOOT stream so it never disturbs the spawn sequence.
 	pickup.position = enemy.position + Vector2(
@@ -135,6 +179,29 @@ func _on_enemy_died(enemy: Enemy) -> void:
 	)
 	pickup.collected.connect(_on_sinag_collected)
 	add_child(pickup)
+	var drop: int = RunDirector.drop_for(enemy.data.is_elite, RngService.next_float(RunRng.LOOT))
+	if drop != RunDirector.Drop.NONE:
+		var item := ItemPickup.new()
+		item.drop = drop
+		item.hero = hero
+		item.position = enemy.position
+		item.collected.connect(_on_item_collected)
+		add_child(item)
+
+
+func _on_item_collected(drop: int) -> void:
+	match drop:
+		RunDirector.Drop.HERB:
+			hero.heal(HERB_HEAL)
+		RunDirector.Drop.MAGNET:
+			for node in get_tree().get_nodes_in_group(&"pickups"):
+				if node is SinagPickup:
+					(node as SinagPickup).attract()
+			_show_banner("Sinag magnet!", 1.5)
+		RunDirector.Drop.CHEST:
+			chests_opened += 1
+			_chests_pending += 1
+			_try_open_level_up()
 
 
 # ---------------------------------------------------------------- levelling
@@ -147,15 +214,25 @@ func _on_sinag_collected(amount: float) -> void:
 
 
 func _try_open_level_up() -> void:
-	if _menu_open or _game_over or run_state.pending_level_ups <= 0:
+	if _menu_open or _game_over:
 		return
-	run_state.pending_level_ups -= 1
+	var from_chest := false
+	if run_state.pending_level_ups > 0:
+		run_state.pending_level_ups -= 1
+	elif _chests_pending > 0:
+		_chests_pending -= 1
+		from_chest = true
+	else:
+		return
 	_menu_open = true
 	var options: Array[Dictionary] = LevelUpPool.build_options(
 		run_state, _weapon_pool, _passive_pool, RngService.rng(), 3
 	)
 	get_tree().paused = true
-	_level_up_menu.present(options, run_state.level - run_state.pending_level_ups)
+	if from_chest:
+		_level_up_menu.present(options, run_state.level, "Chest reward! Choose one")
+	else:
+		_level_up_menu.present(options, run_state.level - run_state.pending_level_ups)
 
 
 func _on_option_chosen(option: Dictionary) -> void:
@@ -223,12 +300,37 @@ func _on_hero_died() -> void:
 	RunLogger.end_run(cause, run_state.level, run_state.kills, {
 		"peak_alive": _peak_alive,
 		"final_pressure": snappedf(pressure, 0.01),
+		"blood_moons": director.blood_moons_triggered,
+		"chests_opened": chests_opened,
 		"estimated_dps": snappedf(run_state.estimated_dps(), 0.1),
 		"baseline_dps": snappedf(_baseline_dps, 0.1),
 	})
 	get_tree().paused = true
 	_game_over_screen.present({
 		"cause": cause,
+		"time": run_time,
+		"level": run_state.level,
+		"kills": run_state.kills,
+		"seed": RngService.current_seed,
+	})
+
+
+func _on_run_won() -> void:
+	if _game_over:
+		return
+	_game_over = true
+	RunLogger.end_run("victory", run_state.level, run_state.kills, {
+		"peak_alive": _peak_alive,
+		"blood_moons": director.blood_moons_triggered,
+		"chests_opened": chests_opened,
+		"estimated_dps": snappedf(run_state.estimated_dps(), 0.1),
+		"baseline_dps": snappedf(_baseline_dps, 0.1),
+	})
+	get_tree().paused = true
+	_game_over_screen.present({
+		"title": "You survived the night",
+		"cause": "",
+		"won": true,
 		"time": run_time,
 		"level": run_state.level,
 		"kills": run_state.kills,

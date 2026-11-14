@@ -1,6 +1,6 @@
 extends Node2D
 ## Repeatable stress test: a god-mode hero with two maxed weapons holds off a constant
-## horde of N enemies, and frame times are recorded.
+## horde of N enemies, and frame times and enemy-update costs are recorded.
 ##
 ##   godot --path . res://scenes/benchmark/benchmark.tscn -- --enemies=800 --seconds=20 --auto-quit
 ##
@@ -25,11 +25,18 @@ var _enemies: EnemyManager
 var _enemy_data: EnemyData
 var _label: Label
 var _elapsed: float = 0.0
+var _measured_seconds: float = 0.0
+var _ticks_at_start: int = 0
+var _measuring: bool = false
 var _finished: bool = false
 var _peak_alive: int = 0
+
 var _frame_ms: PackedFloat32Array = PackedFloat32Array()
-var _process_ms: PackedFloat32Array = PackedFloat32Array()
-var _physics_ms: PackedFloat32Array = PackedFloat32Array()
+var _total_ms: PackedFloat32Array = PackedFloat32Array()
+var _enemy_ms: PackedFloat32Array = PackedFloat32Array()
+var _separation_ms: PackedFloat32Array = PackedFloat32Array()
+var _release_ms: PackedFloat32Array = PackedFloat32Array()
+var _grid_ms: PackedFloat32Array = PackedFloat32Array()
 
 
 func _ready() -> void:
@@ -86,32 +93,51 @@ func _physics_process(_delta: float) -> void:
 		spawned += 1
 	_peak_alive = maxi(_peak_alive, _enemies.alive_count())
 
+	if _measuring:
+		# This node ticks before the manager, so these are the previous tick's costs.
+		_total_ms.append(float(_enemies.last_total_usec) / 1000.0)
+		_enemy_ms.append(float(_enemies.last_enemy_usec) / 1000.0)
+		_separation_ms.append(float(_enemies.last_separation_usec) / 1000.0)
+		_release_ms.append(float(_enemies.last_release_usec) / 1000.0)
+		_grid_ms.append(float(_enemies.last_grid_usec) / 1000.0)
+
 
 func _process(delta: float) -> void:
 	if _enemies == null or _finished:
 		return
 	_elapsed += delta
-	var measuring: bool = _elapsed >= WARMUP_SECONDS
-	if measuring:
+	if not _measuring and _elapsed >= WARMUP_SECONDS:
+		_measuring = true
+		_ticks_at_start = Engine.get_physics_frames()
+	if _measuring:
 		_frame_ms.append(delta * 1000.0)
-		_process_ms.append(float(Performance.get_monitor(Performance.TIME_PROCESS)) * 1000.0)
-		_physics_ms.append(float(Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)) * 1000.0)
+		_measured_seconds += delta
 	_label.text = "%s   enemies: %d / %d   FPS: %d   %.1fs" % [
-		"MEASURING" if measuring else "warming up",
+		"MEASURING" if _measuring else "warming up",
 		_enemies.alive_count(), _target_enemies,
 		Engine.get_frames_per_second(), _elapsed,
 	]
-	if _elapsed >= WARMUP_SECONDS + _duration:
+	if _measuring and _measured_seconds >= _duration:
 		_finish()
 
 
 func _finish() -> void:
 	_finished = true
-	var result: Dictionary = BenchmarkStats.summarize(_frame_ms, _process_ms, _physics_ms)
+	var result: Dictionary = BenchmarkStats.summarize_frames(_frame_ms)
+	var ticks_run: int = Engine.get_physics_frames() - _ticks_at_start
+	result["sim_speed_ratio"] = BenchmarkStats.sim_speed_ratio(ticks_run, _measured_seconds, float(Engine.physics_ticks_per_second))
+	var phases := {
+		"enemy_update": _enemy_ms, "separation": _separation_ms,
+		"release": _release_ms, "grid_rebuild": _grid_ms, "manager_total": _total_ms,
+	}
+	for phase_name in phases:
+		var stats: Dictionary = BenchmarkStats.avg_max(phases[phase_name])
+		result["avg_ms_%s" % phase_name] = stats["avg"]
+		result["max_ms_%s" % phase_name] = stats["max"]
 	result["target_enemies"] = _target_enemies
 	result["peak_alive"] = _peak_alive
 	result["enemy_nodes_created"] = _enemies.total_created
-	result["seconds_measured"] = _duration
+	result["seconds_measured"] = snappedf(_measured_seconds, 0.1)
 	result["seed"] = BENCH_SEED
 	result["godot"] = Engine.get_version_info()["string"]
 	result["os"] = OS.get_name()
@@ -130,7 +156,9 @@ func _finish() -> void:
 	for key in result:
 		print("    %s: %s" % [key, str(result[key])])
 	print("[Benchmark] saved to %s" % ProjectSettings.globalize_path(path))
-	_label.text = "DONE: %s   avg %.0f fps   p99 %.1f ms" % [result["verdict"], result["avg_fps"], result["p99_frame_ms"]]
+	_label.text = "DONE: %s   avg %.0f fps   p99 %.1f ms   sim speed %.2f" % [
+		result["verdict"], result["avg_fps"], result["p99_frame_ms"], result["sim_speed_ratio"]
+	]
 	if _auto_quit:
 		get_tree().quit()
 

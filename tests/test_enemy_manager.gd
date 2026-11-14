@@ -85,6 +85,10 @@ func run() -> Array:
 	var counts: Dictionary = counting.alive_counts()
 	if counts.get(&"grunt", 0) != 3 or counts.get(&"other", 0) != 2:
 		failures.append("alive_counts wrong: %s" % counts)
+	var victim: Enemy = counting.spawn(grunt, Vector2(900.0, 900.0))
+	victim.take_damage(9999.0)
+	if counting.alive_counts().get(&"grunt", 0) != 3 or counting.alive_count() != 5:
+		failures.append("alive counts must drop as soon as an enemy dies: %s / %d" % [counting.alive_counts(), counting.alive_count()])
 
 	# 6. Separation: two enemies spawned almost on top of each other end up apart.
 	var sep: EnemyManager = _manager()
@@ -118,6 +122,7 @@ func run() -> Array:
 	if near.size() != 0:
 		failures.append("a burrowed enemy must not be targetable through the grid")
 	burrow.step(1.0)  # past the 0.9 s warning
+	burrow.step(0.016)  # the grid refreshes every 2nd tick, so allow one more
 	burrow.grid.query_circle(Vector2(300.0, 300.0), 50.0, near)
 	if near.size() != 1:
 		failures.append("an emerged enemy should appear in the grid, found %d" % near.size())

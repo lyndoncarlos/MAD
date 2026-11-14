@@ -1,4 +1,4 @@
-# Mga Alamat ng Dilim: M2 (in progress) on top of the M1 core loop
+# Mga Alamat ng Dilim: M2 on top of the M1 core loop
 
 Godot 4 project, milestone M1. Builds on M0 (data, seeded RNG, hero, logger) and adds the
 core loop: **kill → Sinag drops → pick up → level up → choose an upgrade → repeat → die → retry**.
@@ -39,7 +39,8 @@ godot --headless --script res://tests/run_tests.gd
 | `test_spawn_curve_shape` | the shipped spawn curve has no gaps, jumps or cap blow-ups |
 | `test_spatial_grid` | grid queries match a brute-force scan exactly (400 points, 100 queries), borders, clear |
 | `test_enemy_manager` | pooling reuses nodes, recycled enemies are reset, counts, separation, burrowed enemies stay out of the grid |
-| `test_benchmark_stats` | percentiles and the PASS/FAIL verdict are computed correctly |
+| `test_separation` | push-apart maths on packed arrays matches a brute-force reference; slicing, caps, stacked circles |
+| `test_benchmark_stats` | percentiles, phase stats, simulation speed and the PASS/FAIL verdict |
 
 ## M1 Jira stories mapped to files
 | Story | Where |
@@ -69,18 +70,17 @@ See `docs/SPAWN_TUNING.md` for the formula, tables and a tuning guide.
 ## M2 progress
 | Part | Status |
 |---|---|
-| Performance: spatial grid, pooled enemies, one update loop, separation, benchmark scene | **done in this drop** (`docs/PERFORMANCE.md`) |
-| 20-minute run director: phases, run end at 20:00, Blood Moon meter | next |
-| Elites and a chest reward | next |
-| Pickups: health herb and Sinag magnet | next |
-| Full HUD and Fun check #2 | next |
+| Performance: grid, pooled enemies, separation, benchmark | **done**: 800 enemies 213 FPS, 1200 enemies 109 FPS, sim speed 0.999 (`docs/PERFORMANCE.md`) |
+| 20-minute run director: phases, run end at 20:00, Blood Moon meter | **done** (`RunDirector`): Dusk/Night/Midnight/Pre-dawn, win screen at 20:00, 100 kills fill the meter, then 20 s of Blood Moon (x1.4 spawns, x2 Sinag) |
+| Elites and a chest reward | **done**: Tiyanak Alpha at minutes 4, 8, 12, 16; always drops a chest that opens a free upgrade choice |
+| Pickups: health herb and Sinag magnet | **done**: 2% herb (+25 HP), 0.6% magnet (pulls all Sinag) per kill |
+| Full HUD and Fun check #2 | HUD shows phase, Blood Moon meter, banners and build list. **Fun check #2 is yours to play**: `docs/FUN_CHECK_2.md` |
 
-**Do this first:** run the benchmark at 500 and 800 enemies and fill in the table in `docs/PERFORMANCE.md`.
-If it fails, fix that before building more on top.
+Jump ahead to test late game: `godot --path . -- --start-minute=19.9` (or `--start-minute=3.9` for the first elite).
 
 ## What is still deliberately simple
 - Sinag pickups and projectiles are individual nodes (not pooled). Fine for now; see the "if it fails" list in `docs/PERFORMANCE.md`.
-- One enemy type, placeholder XP curve, no run end at 20:00 yet, no sound, grey-box art.
+- One regular enemy type plus one elite, placeholder XP curve, drop rates and Blood Moon numbers, no sound, grey-box art.
 
 ## Known limits (honest status)
 - Written without access to the Godot editor, so **not yet run**. Run the test suite first; expect to fix small things.
@@ -88,4 +88,4 @@ If it fails, fix that before building more on top.
 - The editor may rewrite `.tres`/`.tscn` files and add `.uid` files on first save. Commit them.
 
 ## Next
-The remaining M2 parts in the table above, then Fun check #2.
+Play Fun check #2 (`docs/FUN_CHECK_2.md`), tune from what you find, then M3.

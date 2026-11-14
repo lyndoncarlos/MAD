@@ -1,26 +1,50 @@
 class_name EnemyManager
 extends Node2D
 ## Owns every enemy. One loop updates them all (no per-node _physics_process), nodes are
-## recycled through a pool (no allocation spikes), enemies push each other apart so hordes
-## do not collapse into one dot, and a spatial grid answers "who is near here?" cheaply.
+## recycled through a pool, enemies push each other apart so hordes do not collapse into
+## one dot, and a spatial grid answers "who is near here?" cheaply.
 ## Must sit at the world origin: enemy positions are world positions.
+##
+## Cost control (800 enemies must fit in a 16.7 ms physics tick):
+##  - the grid is rebuilt every GRID_REBUILD_EVERY ticks (positions may be one tick stale)
+##  - separation handles 1/SEPARATION_SLICES of the enemies per tick, with proportionally
+##    stronger pushes, so every enemy is still corrected regularly
+##  - counts are kept incrementally and the dead-enemy sweep only runs when something died
 
 signal enemy_died(enemy: Enemy)
 
-const CELL_SIZE := 64.0
-## Fraction of the overlap resolved per frame, and a cap on how far one enemy is pushed.
+const CELL_SIZE := 32.0
+const GRID_HALF_EXTENT := 3072.0
+const GRID_REBUILD_EVERY := 2
+const SEPARATION_SLICES := 2
+## Fraction of the overlap resolved per correction, and a cap on how far one enemy is pushed.
 const SEPARATION_STRENGTH := 0.5
 const SEPARATION_MAX_STEP := 6.0
 
 var hero: Hero
-var grid: SpatialGrid = SpatialGrid.new(CELL_SIZE)
+var grid: SpatialGrid = SpatialGrid.new(CELL_SIZE, GRID_HALF_EXTENT)
 ## How many Enemy nodes were ever created. Stays flat once the pool is warm.
 var total_created: int = 0
 
+## Microseconds spent in each phase of the most recent step (for the benchmark and profiling).
+var last_enemy_usec: int = 0
+var last_separation_usec: int = 0
+var last_release_usec: int = 0
+var last_grid_usec: int = 0
+var last_total_usec: int = 0
+
 var _active: Array[Enemy] = []
 var _pool: Array[Enemy] = []
-var _neighbors: Array = []
+var _alive: int = 0
+var _alive_by_id: Dictionary = {}
+var _dead_pending: bool = false
 var _next_serial: int = 0
+var _tick: int = 0
+
+var _radii: PackedFloat32Array = PackedFloat32Array()
+var _serials: PackedInt32Array = PackedInt32Array()
+var _pushes: PackedVector2Array = PackedVector2Array()
+var _grid_max_radius: float = 1.0
 
 
 func setup(target: Hero) -> void:
@@ -41,26 +65,19 @@ func spawn(enemy_data: EnemyData, where: Vector2) -> Enemy:
 	_next_serial += 1
 	enemy.position = where
 	_active.append(enemy)
+	_alive += 1
+	_alive_by_id[enemy_data.id] = _alive_by_id.get(enemy_data.id, 0) + 1
 	return enemy
 
 
 ## Enemies currently in play (not dying).
 func alive_count() -> int:
-	var total := 0
-	for enemy in _active:
-		if not enemy.is_dying:
-			total += 1
-	return total
+	return _alive
 
 
-## enemy id -> how many are alive.
+## enemy id -> how many are alive (a copy; safe to modify).
 func alive_counts() -> Dictionary:
-	var counts: Dictionary = {}
-	for enemy in _active:
-		if enemy.is_dying:
-			continue
-		counts[enemy.data.id] = counts.get(enemy.data.id, 0) + 1
-	return counts
+	return _alive_by_id.duplicate()
 
 
 func pool_size() -> int:
@@ -73,39 +90,51 @@ func _physics_process(delta: float) -> void:
 
 ## One simulation tick. Public so tests and benchmarks can drive it without a scene tree.
 func step(delta: float) -> void:
+	var t0: int = Time.get_ticks_usec()
 	for enemy in _active:
 		enemy.step(delta)
+	var t1: int = Time.get_ticks_usec()
 	_separate()
-	_release_dead()
-	_rebuild_grid()
+	var t2: int = Time.get_ticks_usec()
+	if _dead_pending:
+		_release_dead()
+	var t3: int = Time.get_ticks_usec()
+	if _tick % GRID_REBUILD_EVERY == 0:
+		_rebuild_grid()
+	var t4: int = Time.get_ticks_usec()
+	_tick += 1
+
+	last_enemy_usec = t1 - t0
+	last_separation_usec = t2 - t1
+	last_release_usec = t3 - t2
+	last_grid_usec = t4 - t3
+	last_total_usec = t4 - t0
 
 
 func _separate() -> void:
-	for enemy in _active:
-		if not enemy.is_targetable():
-			continue
-		grid.query_circle(enemy.position, enemy.data.radius + EnemyData.MAX_RADIUS, _neighbors)
-		var push := Vector2.ZERO
-		for item in _neighbors:
-			var other: Enemy = item
-			if other == enemy or not other.is_targetable():
-				continue
-			var offset: Vector2 = enemy.position - other.position
-			var min_distance: float = enemy.data.radius + other.data.radius
-			var distance_sq: float = offset.length_squared()
-			if distance_sq >= min_distance * min_distance:
-				continue
-			if distance_sq < 0.0001:
-				# Exactly on top of each other: pick a direction from the spawn serial (deterministic).
-				push += Vector2.from_angle(deg_to_rad(float(enemy.serial % 360))) * min_distance
-			else:
-				var distance: float = sqrt(distance_sq)
-				push += offset / distance * (min_distance - distance)
+	var count: int = grid.count()
+	if count < 2:
+		return
+	var slice: int = _tick % SEPARATION_SLICES
+	Separation.compute_into(
+		grid, _radii, _serials, _grid_max_radius,
+		slice, SEPARATION_SLICES,
+		SEPARATION_STRENGTH * float(SEPARATION_SLICES), SEPARATION_MAX_STEP,
+		_pushes
+	)
+	var i: int = slice
+	while i < count:
+		var push: Vector2 = _pushes[i]
 		if push != Vector2.ZERO:
-			enemy.position += push.limit_length(SEPARATION_MAX_STEP) * SEPARATION_STRENGTH
+			var enemy: Enemy = grid.item_at(i)
+			# The grid can be a tick old: only push the same enemy that was indexed.
+			if enemy.serial == _serials[i] and enemy.is_targetable():
+				enemy.position += push
+		i += SEPARATION_SLICES
 
 
 func _release_dead() -> void:
+	_dead_pending = false
 	var still_active: Array[Enemy] = []
 	for enemy in _active:
 		if enemy.is_dying:
@@ -118,10 +147,19 @@ func _release_dead() -> void:
 
 func _rebuild_grid() -> void:
 	grid.clear()
+	_radii.clear()
+	_serials.clear()
+	_grid_max_radius = 1.0
 	for enemy in _active:
 		if enemy.is_targetable():
 			grid.insert(enemy, enemy.position)
+			_radii.append(enemy.data.radius)
+			_serials.append(enemy.serial)
+			_grid_max_radius = maxf(_grid_max_radius, enemy.data.radius)
 
 
 func _on_enemy_died(enemy: Enemy) -> void:
+	_alive -= 1
+	_alive_by_id[enemy.data.id] = _alive_by_id.get(enemy.data.id, 1) - 1
+	_dead_pending = true
 	enemy_died.emit(enemy)

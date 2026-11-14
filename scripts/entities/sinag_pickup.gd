@@ -19,6 +19,11 @@ func _ready() -> void:
 	add_to_group(&"pickups")
 
 
+## Magnet effect: fly to the hero from anywhere.
+func attract() -> void:
+	_attracted = true
+
+
 func _physics_process(delta: float) -> void:
 	if hero == null or not is_instance_valid(hero) or hero.is_dead():
 		return
