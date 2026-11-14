@@ -3,6 +3,9 @@ extends BaseData
 
 enum SpawnStyle { RING, BURROW }
 
+## Largest allowed radius. The spatial grid's neighbour queries rely on it.
+const MAX_RADIUS := 40.0
+
 @export var max_hp: float = 10.0
 @export var move_speed: float = 60.0
 @export var contact_damage: float = 5.0

@@ -22,6 +22,7 @@ var run_time: float = 0.0
 ## Current spawn pressure multiplier (1.0 = as authored). Shown on the HUD for tuning.
 var pressure: float = 1.0
 var hero: Hero
+var enemies: EnemyManager
 var run_state: RunState
 
 var _planner: SpawnPlanner
@@ -56,9 +57,14 @@ func _ready() -> void:
 	RunLogger.start_run(hero_id, run_seed)
 
 	add_child(MAP_SCENE.instantiate())
+	enemies = EnemyManager.new()
+	add_child(enemies)  # before the hero, so enemies move first each frame
 	hero = HERO_SCENE.instantiate() as Hero
 	hero.setup(hero_data)
+	hero.enemies = enemies
 	add_child(hero)
+	enemies.setup(hero)
+	enemies.enemy_died.connect(_on_enemy_died)
 	hero.died.connect(_on_hero_died)
 	_grant_weapon(hero_data.starting_weapon_id, 1)
 	_baseline_dps = maxf(1.0, run_state.estimated_dps())
@@ -86,13 +92,7 @@ func _physics_process(delta: float) -> void:
 # ---------------------------------------------------------------- spawning
 
 func _alive_counts() -> Dictionary:
-	var counts: Dictionary = {}
-	for node in get_tree().get_nodes_in_group(&"enemies"):
-		var enemy := node as Enemy
-		if enemy == null or enemy.is_dying:
-			continue
-		counts[enemy.data.id] = counts.get(enemy.data.id, 0) + 1
-	return counts
+	return enemies.alive_counts()
 
 
 func _spawn_order(order: SpawnOrder) -> void:
@@ -118,13 +118,9 @@ func _spawn_order(order: SpawnOrder) -> void:
 
 
 func _spawn_enemy(enemy_data: EnemyData, where: Vector2) -> void:
-	var enemy := Enemy.new()
-	enemy.setup(enemy_data, hero)
-	enemy.position = where.clamp(
+	enemies.spawn(enemy_data, where.clamp(
 		Vector2(-MAP_HALF_SIZE, -MAP_HALF_SIZE), Vector2(MAP_HALF_SIZE, MAP_HALF_SIZE)
-	)
-	enemy.died.connect(_on_enemy_died)
-	add_child(enemy)
+	))
 
 
 func _on_enemy_died(enemy: Enemy) -> void:
@@ -133,7 +129,7 @@ func _on_enemy_died(enemy: Enemy) -> void:
 	pickup.value = enemy.data.xp_value
 	pickup.hero = hero
 	# Drop scatter uses the LOOT stream so it never disturbs the spawn sequence.
-	pickup.position = enemy.global_position + Vector2(
+	pickup.position = enemy.position + Vector2(
 		RngService.float_range(-6.0, 6.0, RunRng.LOOT),
 		RngService.float_range(-6.0, 6.0, RunRng.LOOT)
 	)

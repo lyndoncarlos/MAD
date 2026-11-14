@@ -1,4 +1,4 @@
-# Mga Alamat ng Dilim: M1 Core Loop
+# Mga Alamat ng Dilim: M2 (in progress) on top of the M1 core loop
 
 Godot 4 project, milestone M1. Builds on M0 (data, seeded RNG, hero, logger) and adds the
 core loop: **kill → Sinag drops → pick up → level up → choose an upgrade → repeat → die → retry**.
@@ -37,6 +37,9 @@ godot --headless --script res://tests/run_tests.gd
 | `test_spawn_pressure` | pressure rises with level and build strength, is clamped, handles bad inputs |
 | `test_weapon_dps` | DPS estimates count damage upgrades and ignore movement/pickup passives |
 | `test_spawn_curve_shape` | the shipped spawn curve has no gaps, jumps or cap blow-ups |
+| `test_spatial_grid` | grid queries match a brute-force scan exactly (400 points, 100 queries), borders, clear |
+| `test_enemy_manager` | pooling reuses nodes, recycled enemies are reset, counts, separation, burrowed enemies stay out of the grid |
+| `test_benchmark_stats` | percentiles and the PASS/FAIL verdict are computed correctly |
 
 ## M1 Jira stories mapped to files
 | Story | Where |
@@ -63,16 +66,26 @@ Spawn rate, alive cap and pack size ramp over time, and pressure (level plus the
 upgrades) scales rate and cap. The HUD shows `Alive` and `Pressure`; run logs record peaks for tuning.
 See `docs/SPAWN_TUNING.md` for the formula, tables and a tuning guide.
 
-## What is deliberately simple (M2 fixes it)
-- Enemies, projectiles and pickups are plain nodes found with `get_nodes_in_group`. This is fine for dozens, **not** hundreds.
-  M2 adds pooling and spatial lookup. Do not judge performance yet.
-- One enemy type, flat spawn rates, placeholder XP curve, no run end at 20:00, no sound, grey-box art.
-- Enemies overlap each other (no separation yet).
+## M2 progress
+| Part | Status |
+|---|---|
+| Performance: spatial grid, pooled enemies, one update loop, separation, benchmark scene | **done in this drop** (`docs/PERFORMANCE.md`) |
+| 20-minute run director: phases, run end at 20:00, Blood Moon meter | next |
+| Elites and a chest reward | next |
+| Pickups: health herb and Sinag magnet | next |
+| Full HUD and Fun check #2 | next |
+
+**Do this first:** run the benchmark at 500 and 800 enemies and fill in the table in `docs/PERFORMANCE.md`.
+If it fails, fix that before building more on top.
+
+## What is still deliberately simple
+- Sinag pickups and projectiles are individual nodes (not pooled). Fine for now; see the "if it fails" list in `docs/PERFORMANCE.md`.
+- One enemy type, placeholder XP curve, no run end at 20:00 yet, no sound, grey-box art.
 
 ## Known limits (honest status)
 - Written without access to the Godot editor, so **not yet run**. Run the test suite first; expect to fix small things.
 - Tuning numbers (HP, speeds, damage, XP, spawn rates) are placeholders to be set by playtesting.
 - The editor may rewrite `.tres`/`.tscn` files and add `.uid` files on first save. Commit them.
 
-## Next (M2)
-20-minute spawn curve, elites and pickups, enemy pooling and separation, 500/800-enemy benchmarks, full HUD, Fun check #2.
+## Next
+The remaining M2 parts in the table above, then Fun check #2.

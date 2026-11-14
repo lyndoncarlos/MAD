@@ -8,8 +8,9 @@ const PRUNE_INTERVAL := 5.0
 var _angle: float = 0.0
 var _clock: float = 0.0
 var _next_prune: float = PRUNE_INTERVAL
-var _last_hit: Dictionary = {}  # enemy instance id -> clock time of last hit
+var _last_hit: Dictionary = {}  # enemy serial -> clock time of last hit
 var _orb_positions: Array[Vector2] = []
+var _found: Array = []
 
 
 func _physics_process(delta: float) -> void:
@@ -25,20 +26,22 @@ func _physics_process(delta: float) -> void:
 		var orb_angle: float = _angle + TAU * float(i) / float(count)
 		_orb_positions.append(Vector2.RIGHT.rotated(orb_angle) * radius)
 
-	var damage: float = current_damage()
-	for node in get_tree().get_nodes_in_group(&"enemies"):
-		var enemy := node as Enemy
-		if enemy == null or not enemy.is_targetable():
-			continue
-		var enemy_id: int = enemy.get_instance_id()
-		if _clock - _last_hit.get(enemy_id, -999.0) < data.cooldown:
-			continue
+	if hero.enemies != null:
+		var damage: float = current_damage()
 		for local_pos in _orb_positions:
-			var distance: float = to_global(local_pos).distance_to(enemy.global_position)
-			if distance <= data.hit_radius + enemy.data.radius:
+			var orb_pos: Vector2 = hero.position + local_pos
+			hero.enemies.grid.query_circle(orb_pos, data.hit_radius + EnemyData.MAX_RADIUS, _found)
+			for item in _found:
+				var enemy: Enemy = item
+				if not enemy.is_targetable():
+					continue
+				if orb_pos.distance_to(enemy.position) > data.hit_radius + enemy.data.radius:
+					continue
+				var last_hit: float = _last_hit.get(enemy.serial, -999.0)
+				if _clock - last_hit < data.cooldown:
+					continue
 				enemy.take_damage(damage)
-				_last_hit[enemy_id] = _clock
-				break
+				_last_hit[enemy.serial] = _clock
 
 	if _clock >= _next_prune:
 		_prune_hits()
@@ -47,9 +50,9 @@ func _physics_process(delta: float) -> void:
 
 
 func _prune_hits() -> void:
-	for enemy_id in _last_hit.keys():
-		if _clock - _last_hit[enemy_id] > PRUNE_INTERVAL:
-			_last_hit.erase(enemy_id)
+	for enemy_serial in _last_hit.keys():
+		if _clock - _last_hit[enemy_serial] > PRUNE_INTERVAL:
+			_last_hit.erase(enemy_serial)
 
 
 func _draw() -> void:

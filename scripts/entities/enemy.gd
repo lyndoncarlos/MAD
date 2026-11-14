@@ -1,9 +1,10 @@
 class_name Enemy
 extends Node2D
-## Grey-box enemy. Created with Enemy.new() and configured by EnemyData; no scene needed yet.
+## Grey-box enemy, pooled and driven by EnemyManager (it has no _physics_process of its own).
 ## States: BURROWED (warning, harmless, untargetable) -> BURSTING (fast lunge in a locked
 ## direction) -> CHASING (walks at the hero). RING-style enemies start in CHASING.
-## (M2 replaces per-node logic with pooling and separation for large hordes.)
+## All positions are world positions (the manager sits at the world origin), so this
+## class uses `position`, not `global_position`.
 
 signal died(enemy: Enemy)
 
@@ -13,6 +14,8 @@ var data: EnemyData
 var hero: Hero
 var hp: float = 1.0
 var is_dying: bool = false
+## Unique per spawn (not per node, because nodes are reused). Safe to use as a lookup key.
+var serial: int = 0
 
 var _state: State = State.CHASING
 var _state_time: float = 0.0
@@ -20,16 +23,18 @@ var _burst_direction: Vector2 = Vector2.RIGHT
 var _flash_left: float = 0.0
 
 
-func setup(enemy_data: EnemyData, target: Hero) -> void:
+## Prepares a new or recycled node for a fresh enemy.
+func reset(enemy_data: EnemyData, target: Hero) -> void:
 	data = enemy_data
 	hero = target
 	hp = data.max_hp
-	if data.spawn_style == EnemyData.SpawnStyle.BURROW:
-		_state = State.BURROWED
-
-
-func _ready() -> void:
-	add_to_group(&"enemies")
+	is_dying = false
+	_state_time = 0.0
+	_flash_left = 0.0
+	_burst_direction = Vector2.RIGHT
+	_state = State.BURROWED if data.spawn_style == EnemyData.SpawnStyle.BURROW else State.CHASING
+	visible = true
+	queue_redraw()
 
 
 ## False while burrowed or dying: weapons must not aim at or hit it.
@@ -37,7 +42,8 @@ func is_targetable() -> bool:
 	return not is_dying and _state != State.BURROWED
 
 
-func _physics_process(delta: float) -> void:
+## Called once per physics frame by EnemyManager.
+func step(delta: float) -> void:
 	if is_dying or hero == null or not is_instance_valid(hero):
 		return
 	_state_time += delta
@@ -52,8 +58,7 @@ func _physics_process(delta: float) -> void:
 		State.CHASING:
 			_chase(delta)
 
-	var distance: float = global_position.distance_to(hero.global_position)
-	if distance <= data.radius + Hero.DRAW_RADIUS:
+	if position.distance_to(hero.position) <= data.radius + Hero.DRAW_RADIUS:
 		hero.take_damage(data.contact_damage, data.id)
 	if _flash_left > 0.0:
 		_flash_left -= delta
@@ -65,13 +70,13 @@ func take_damage(amount: float) -> void:
 	if is_dying or _state == State.BURROWED:
 		return
 	hp -= amount
-	DamageNumber.spawn(get_parent(), global_position, amount)
+	DamageNumber.spawn(get_parent(), position, amount)
 	_flash_left = 0.08
 	queue_redraw()
 	if hp <= 0.0:
 		is_dying = true
+		visible = false
 		died.emit(self)
-		queue_free()
 
 
 func _begin_burst() -> void:
@@ -81,7 +86,7 @@ func _begin_burst() -> void:
 	else:
 		_state = State.BURSTING
 		# The direction is locked at the moment of emerging, so a moving hero can dodge it.
-		var to_hero: Vector2 = hero.global_position - global_position
+		var to_hero: Vector2 = hero.position - position
 		_burst_direction = to_hero.normalized() if to_hero.length() > 0.01 else Vector2.RIGHT
 	queue_redraw()
 
@@ -90,7 +95,7 @@ func _update_burst(delta: float) -> void:
 	var speed: float = EnemyMotion.burst_speed(
 		_state_time, data.move_speed, data.emerge_speed_mult, data.emerge_burst_seconds
 	)
-	global_position += _burst_direction * speed * delta
+	position += _burst_direction * speed * delta
 	if _state_time >= data.emerge_burst_seconds:
 		_state = State.CHASING
 		_state_time = 0.0
@@ -98,13 +103,15 @@ func _update_burst(delta: float) -> void:
 
 
 func _chase(delta: float) -> void:
-	var to_hero: Vector2 = hero.global_position - global_position
+	var to_hero: Vector2 = hero.position - position
 	var distance: float = to_hero.length()
 	if distance > 0.01:
-		global_position += to_hero / distance * data.move_speed * delta
+		position += to_hero / distance * data.move_speed * delta
 
 
 func _draw() -> void:
+	if data == null:
+		return
 	if _state == State.BURROWED:
 		_draw_burrow_warning()
 		return

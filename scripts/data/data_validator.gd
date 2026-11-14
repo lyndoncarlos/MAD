@@ -133,6 +133,8 @@ static func _check_enemy(enemy: EnemyData, path: String, problems: Array[String]
 		problems.append("%s: move_speed must be >= 0" % path)
 	if enemy.contact_damage < 0.0:
 		problems.append("%s: contact_damage must be >= 0" % path)
+	if enemy.radius <= 0.0 or enemy.radius > EnemyData.MAX_RADIUS:
+		problems.append("%s: radius must be > 0 and <= %s" % [path, EnemyData.MAX_RADIUS])
 	if enemy.xp_value < 0.0:
 		problems.append("%s: xp_value must be >= 0" % path)
 	if enemy.spawn_style == EnemyData.SpawnStyle.BURROW:

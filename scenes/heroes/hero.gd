@@ -16,6 +16,10 @@ var speed_mult: float = 1.0
 var pickup_mult: float = 1.0
 ## Id of whatever dealt the last hit (shown on the game-over screen and logged).
 var last_damage_source: StringName = &""
+## Set by whoever creates the hero, so weapons can find enemies.
+var enemies: EnemyManager
+## Benchmarks and debugging: take no damage.
+var god_mode: bool = false
 
 var _facing: Vector2 = Vector2.RIGHT
 var _invulnerable_left: float = 0.0
@@ -45,7 +49,7 @@ func pickup_radius() -> float:
 
 
 func take_damage(amount: float, source_id: StringName = &"") -> void:
-	if _dead or _invulnerable_left > 0.0 or amount <= 0.0:
+	if god_mode or _dead or _invulnerable_left > 0.0 or amount <= 0.0:
 		return
 	current_hp = maxf(0.0, current_hp - amount)
 	last_damage_source = source_id

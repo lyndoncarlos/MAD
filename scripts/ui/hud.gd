@@ -68,6 +68,6 @@ func _process(_delta: float) -> void:
 	_hp_bar.max_value = hero.data.max_hp
 	_hp_bar.value = hero.current_hp
 	_info_label.text = "Kills: %d   Alive: %d   Pressure: x%.2f   Seed: %d   FPS: %d" % [
-		state.kills, get_tree().get_node_count_in_group(&"enemies"), _world.pressure,
+		state.kills, _world.enemies.alive_count(), _world.pressure,
 		RngService.current_seed, Engine.get_frames_per_second()
 	]

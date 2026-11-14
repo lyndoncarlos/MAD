@@ -13,10 +13,10 @@ func _physics_process(delta: float) -> void:
 	_cooldown_left -= delta
 	if _cooldown_left > 0.0:
 		return
-	var target := Targeting.nearest_enemy(get_tree(), hero.global_position, data.target_range)
+	var target := Targeting.nearest_enemy(hero.enemies, hero.position, data.target_range)
 	if target == null:
 		return  # stay ready; fire as soon as something comes into range
-	_fire_volley((target.global_position - hero.global_position).normalized())
+	_fire_volley((target.position - hero.position).normalized())
 	_cooldown_left = data.cooldown
 
 
@@ -27,7 +27,8 @@ func _fire_volley(direction: Vector2) -> void:
 		var offset: float = (float(i) - float(count - 1) / 2.0) * SPREAD_RADIANS
 		var shot := Projectile.new()
 		shot.setup(
-			hero.global_position,
+			hero.enemies,
+			hero.position,
 			direction.rotated(offset),
 			data.projectile_speed,
 			damage,
