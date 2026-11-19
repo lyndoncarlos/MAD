@@ -8,48 +8,48 @@ script = ExtResource("2_wave")
 start_minute = 0.0
 end_minute = 3.0
 enemy_id = &"tiyanak"
-spawns_per_second = 0.5
-end_spawns_per_second = 0.8
-max_alive = 10
-end_max_alive = 25
+spawns_per_second = 0.7
+end_spawns_per_second = 1.0
+max_alive = 15
+end_max_alive = 35
 pack_size = 1
-end_pack_size = 1
+end_pack_size = 2
 
 [sub_resource type="Resource" id="Resource_night"]
 script = ExtResource("2_wave")
 start_minute = 3.0
 end_minute = 8.0
 enemy_id = &"tiyanak"
-spawns_per_second = 0.8
-end_spawns_per_second = 1.1
-max_alive = 25
-end_max_alive = 50
-pack_size = 1
-end_pack_size = 2
+spawns_per_second = 1.0
+end_spawns_per_second = 1.5
+max_alive = 35
+end_max_alive = 80
+pack_size = 2
+end_pack_size = 3
 
 [sub_resource type="Resource" id="Resource_midnight"]
 script = ExtResource("2_wave")
 start_minute = 8.0
 end_minute = 14.0
 enemy_id = &"tiyanak"
-spawns_per_second = 1.1
-end_spawns_per_second = 1.4
-max_alive = 50
-end_max_alive = 80
-pack_size = 2
-end_pack_size = 3
+spawns_per_second = 1.5
+end_spawns_per_second = 2.2
+max_alive = 80
+end_max_alive = 150
+pack_size = 3
+end_pack_size = 4
 
 [sub_resource type="Resource" id="Resource_predawn"]
 script = ExtResource("2_wave")
 start_minute = 14.0
 end_minute = 20.0
 enemy_id = &"tiyanak"
-spawns_per_second = 1.4
-end_spawns_per_second = 1.7
-max_alive = 80
-end_max_alive = 110
-pack_size = 3
-end_pack_size = 4
+spawns_per_second = 2.2
+end_spawns_per_second = 3.0
+max_alive = 150
+end_max_alive = 230
+pack_size = 4
+end_pack_size = 5
 
 [resource]
 script = ExtResource("1_curve")
@@ -63,4 +63,4 @@ id = &"chapter_01"
 display_name = "Chapter 1 spawn curve (placeholder tuning)"
 schema_version = 1
 source = ""
-notes = "Tiyanak only. Caps are sized for the M1 prototype (no pooling yet); raise them in M2."
+notes = "Tiyanak only. Tuned after Fun check #2 (run was too easy): about 2x rates, caps up to 230 alive, bigger packs."

@@ -18,6 +18,9 @@ const LEVEL_CURVE_ID := &"level_curve_default"
 const SPAWN_CURVE_ID := &"chapter_01"
 const ELITE_ID := &"tiyanak_alpha"
 const HERB_HEAL := 25.0
+## Big Sinag jackpot: this fraction of the current level's XP requirement (at least the minimum).
+const BIG_XP_FRACTION := 0.5
+const BIG_XP_MINIMUM := 10.0
 
 @export var hero_id: StringName = &"tala"
 
@@ -50,6 +53,7 @@ func _ready() -> void:
 	InputSetup.ensure_actions()
 
 	var run_seed: int = RngService.start_run(_resolve_seed())
+	Enemy.combat_rng = RngService.rng()
 	var hero_data := DataRegistry.get_data(&"heroes", hero_id) as HeroData
 	var level_curve := DataRegistry.get_data(&"level_curves", LEVEL_CURVE_ID) as LevelCurveData
 	var spawn_curve := DataRegistry.get_data(&"spawn_curves", SPAWN_CURVE_ID) as SpawnCurveData
@@ -103,6 +107,7 @@ func _physics_process(delta: float) -> void:
 	_peak_alive = maxi(_peak_alive, total_alive)
 	pressure = SpawnPressure.compute(run_state.level, run_state.estimated_dps(), _baseline_dps, _spawn_curve)
 	pressure *= director.spawn_mult()
+	Enemy.burrow_speed_mult = director.burrow_speed_mult(run_time)
 	for order in _planner.plan(delta, run_time, alive, pressure):
 		_spawn_order(order)
 	for i in director.take_due_elites(run_time):
@@ -156,7 +161,10 @@ func _spawn_elite() -> void:
 	if elite_data == null:
 		return
 	var angle: float = RngService.float_range(0.0, TAU, RunRng.SPAWN)
-	_spawn_enemy(elite_data, hero.global_position + SpawnPlanner.ring_offset(angle, SPAWN_RING_RADIUS))
+	var elite: Enemy = enemies.spawn(elite_data, (
+		hero.global_position + SpawnPlanner.ring_offset(angle, SPAWN_RING_RADIUS)
+	).clamp(Vector2(-MAP_HALF_SIZE, -MAP_HALF_SIZE), Vector2(MAP_HALF_SIZE, MAP_HALF_SIZE)))
+	elite.hp *= RunDirector.elite_hp_mult(director.elites_spawned())
 	_show_banner("An elite approaches: %s" % elite_data.display_name, 3.0)
 
 
@@ -192,7 +200,7 @@ func _on_enemy_died(enemy: Enemy) -> void:
 	)
 	pickup.collected.connect(_on_sinag_collected)
 	add_child(pickup)
-	var drop: int = RunDirector.drop_for(enemy.data.is_elite, RngService.next_float(RunRng.LOOT))
+	var drop: int = RunDirector.drop_for(enemy.data.is_elite, RngService.next_float(RunRng.LOOT), run_time)
 	if drop != RunDirector.Drop.NONE:
 		var item := ItemPickup.new()
 		item.drop = drop
@@ -211,6 +219,10 @@ func _on_item_collected(drop: int) -> void:
 				if node is SinagPickup:
 					(node as SinagPickup).attract()
 			_show_banner("Sinag magnet!", 1.5)
+		RunDirector.Drop.BIG_XP:
+			run_state.add_xp(maxf(BIG_XP_MINIMUM, run_state.xp_needed() * BIG_XP_FRACTION))
+			_show_banner("Big Sinag!", 1.5)
+			_try_open_level_up()
 		RunDirector.Drop.CHEST:
 			chests_opened += 1
 			_chests_pending += 1

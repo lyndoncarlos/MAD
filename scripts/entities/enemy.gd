@@ -8,7 +8,13 @@ extends Node2D
 
 signal died(enemy: Enemy)
 
-enum State { BURROWED, BURSTING, CHASING }
+enum State { BURROWED, BURSTING, CHASING, WINDUP, SPRINTING, LEAPING }
+
+## Burrowed enemies count down their warning this many times faster. Set each tick by the run
+## scene (it grows over the run and spikes during a Blood Moon).
+static var burrow_speed_mult: float = 1.0
+## Seeded random streams for ability timing (set by the run scene; abilities stay off without it).
+static var combat_rng: RunRng = null
 
 var data: EnemyData
 var hero: Hero
@@ -21,6 +27,11 @@ var _state: State = State.CHASING
 var _state_time: float = 0.0
 var _burst_direction: Vector2 = Vector2.RIGHT
 var _flash_left: float = 0.0
+var _ability_left: float = 0.0
+var _use_leap: bool = false
+var _charge_direction: Vector2 = Vector2.RIGHT
+var _charge_target: Vector2 = Vector2.ZERO
+var _leap_velocity: Vector2 = Vector2.ZERO
 
 
 ## Prepares a new or recycled node for a fresh enemy.
@@ -32,6 +43,7 @@ func reset(enemy_data: EnemyData, target: Hero) -> void:
 	_state_time = 0.0
 	_flash_left = 0.0
 	_burst_direction = Vector2.RIGHT
+	_ability_left = _roll_ability_delay()
 	_state = State.BURROWED if data.spawn_style == EnemyData.SpawnStyle.BURROW else State.CHASING
 	visible = true
 	queue_redraw()
@@ -46,7 +58,7 @@ func is_targetable() -> bool:
 func step(delta: float) -> void:
 	if is_dying or hero == null or not is_instance_valid(hero):
 		return
-	_state_time += delta
+	_state_time += delta * (burrow_speed_mult if _state == State.BURROWED else 1.0)
 	match _state:
 		State.BURROWED:
 			queue_redraw()  # animate the warning
@@ -57,8 +69,15 @@ func step(delta: float) -> void:
 			_update_burst(delta)
 		State.CHASING:
 			_chase(delta)
+			_tick_ability(delta)
+		State.WINDUP:
+			_update_windup()
+		State.SPRINTING:
+			_update_sprint(delta)
+		State.LEAPING:
+			_update_leap(delta)
 
-	if position.distance_to(hero.position) <= data.radius + Hero.DRAW_RADIUS:
+	if _state != State.LEAPING and position.distance_to(hero.position) <= data.radius + Hero.DRAW_RADIUS:
 		hero.take_damage(data.contact_damage, data.id)
 	if _flash_left > 0.0:
 		_flash_left -= delta
@@ -102,6 +121,59 @@ func _update_burst(delta: float) -> void:
 		queue_redraw()
 
 
+func _roll_ability_delay() -> float:
+	if data.ability_interval_max <= 0.0 or combat_rng == null:
+		return INF
+	return combat_rng.float_range(data.ability_interval_min, data.ability_interval_max, RunRng.COMBAT)
+
+
+func _tick_ability(delta: float) -> void:
+	_ability_left -= delta
+	if _ability_left > 0.0:
+		return
+	_use_leap = combat_rng.chance(data.leap_chance, RunRng.COMBAT)
+	var to_hero: Vector2 = hero.position - position
+	_charge_direction = to_hero.normalized() if to_hero.length() > 0.01 else Vector2.RIGHT
+	_charge_target = hero.position
+	_state = State.WINDUP
+	_state_time = 0.0
+	queue_redraw()
+
+
+## Stands still and telegraphs; the direction (sprint) or landing spot (leap) was locked on entry.
+func _update_windup() -> void:
+	queue_redraw()
+	var windup: float = data.leap_windup_seconds if _use_leap else data.sprint_windup_seconds
+	if _state_time < windup:
+		return
+	_state_time = 0.0
+	if _use_leap:
+		_state = State.LEAPING
+		_leap_velocity = (_charge_target - position) / maxf(data.leap_seconds, 0.05)
+	else:
+		_state = State.SPRINTING
+
+
+func _update_sprint(delta: float) -> void:
+	position += _charge_direction * data.move_speed * data.sprint_speed_mult * delta
+	if _state_time >= data.sprint_seconds:
+		_end_ability()
+
+
+func _update_leap(delta: float) -> void:
+	position += _leap_velocity * delta
+	queue_redraw()
+	if _state_time >= data.leap_seconds:
+		_end_ability()
+
+
+func _end_ability() -> void:
+	_state = State.CHASING
+	_state_time = 0.0
+	_ability_left = _roll_ability_delay()
+	queue_redraw()
+
+
 func _chase(delta: float) -> void:
 	var to_hero: Vector2 = hero.position - position
 	var distance: float = to_hero.length()
@@ -116,6 +188,17 @@ func _draw() -> void:
 		_draw_burrow_warning()
 		return
 	var color: Color = Color.WHITE if _flash_left > 0.0 else data.body_color
+	if _state == State.WINDUP:
+		_draw_windup(color)
+		return
+	if _state == State.LEAPING:
+		var t: float = clampf(_state_time / maxf(data.leap_seconds, 0.05), 0.0, 1.0)
+		var lift: float = sin(t * PI) * data.leap_height
+		draw_circle(Vector2(0.0, data.radius * 0.5), data.radius * (1.0 - 0.3 * sin(t * PI)), Color(0, 0, 0, 0.35))
+		draw_circle(Vector2(0.0, -lift), data.radius, color)
+		return
+	if _state == State.SPRINTING:
+		draw_line(Vector2.ZERO, -_charge_direction * data.radius * 3.2, Color(1.0, 0.7, 0.6, 0.6), data.radius * 1.4)
 	if _state == State.BURSTING:
 		# Motion streak behind the lunge.
 		draw_line(Vector2.ZERO, -_burst_direction * data.radius * 2.6, Color(1.0, 0.8, 0.8, 0.5), data.radius * 1.2)
@@ -132,3 +215,18 @@ func _draw_burrow_warning() -> void:
 		var inner: Vector2 = Vector2.RIGHT.rotated(crack_angle) * ring_radius * 0.4
 		var outer: Vector2 = Vector2.RIGHT.rotated(crack_angle) * ring_radius * 1.25
 		draw_line(inner, outer, Color(0.15, 0.1, 0.05, 0.85), 2.0)
+
+
+func _draw_windup(color: Color) -> void:
+	var windup: float = data.leap_windup_seconds if _use_leap else data.sprint_windup_seconds
+	var progress: float = clampf(_state_time / maxf(windup, 0.01), 0.0, 1.0)
+	var shake := Vector2(sin(_state_time * 70.0), cos(_state_time * 83.0)) * 2.5
+	var flash: Color = color.lerp(Color(1.0, 0.9, 0.5), progress)
+	if _use_leap:
+		var landing: Vector2 = _charge_target - position
+		draw_arc(landing, data.radius * 1.4, 0.0, TAU, 28, Color(1.0, 0.35, 0.2, 0.35 + 0.5 * progress), 3.0)
+		draw_circle(landing, data.radius * 1.4 * progress, Color(1.0, 0.35, 0.2, 0.18))
+	else:
+		var length: float = data.move_speed * data.sprint_speed_mult * data.sprint_seconds
+		draw_line(Vector2.ZERO, _charge_direction * length, Color(1.0, 0.35, 0.2, 0.15 + 0.35 * progress), data.radius * 1.6)
+	draw_circle(shake, data.radius * (1.0 + 0.12 * progress), flash)

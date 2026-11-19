@@ -48,10 +48,33 @@ func run() -> Array:
 	# Drops.
 	if RunDirector.drop_for(true, 0.99) != RunDirector.Drop.CHEST:
 		failures.append("elites always drop a chest")
-	if RunDirector.drop_for(false, 0.0) != RunDirector.Drop.MAGNET:
-		failures.append("lowest roll should be a magnet")
-	if RunDirector.drop_for(false, RunDirector.MAGNET_CHANCE + 0.001) != RunDirector.Drop.HERB:
+	if RunDirector.drop_for(false, 0.0) != RunDirector.Drop.BIG_XP:
+		failures.append("lowest roll should be big Sinag")
+	if RunDirector.drop_for(false, RunDirector.BIG_XP_CHANCE + 0.0001) != RunDirector.Drop.MAGNET:
+		failures.append("next band should be a magnet")
+	if RunDirector.drop_for(false, RunDirector.BIG_XP_CHANCE + RunDirector.MAGNET_CHANCE + 0.0001) != RunDirector.Drop.HERB:
 		failures.append("next band should be a herb")
+	# Late in the run herbs and magnets get rarer; big Sinag does not.
+	var herb_top: float = RunDirector.BIG_XP_CHANCE + (RunDirector.MAGNET_CHANCE + RunDirector.HERB_CHANCE) * 0.9
+	if RunDirector.drop_for(false, herb_top, 0.0) != RunDirector.Drop.HERB:
+		failures.append("early herb band should reach 90 percent of its full width")
+	if RunDirector.drop_for(false, herb_top, 1200.0) != RunDirector.Drop.NONE:
+		failures.append("the same roll should drop nothing late in the run")
+	if RunDirector.drop_for(false, 0.0, 1200.0) != RunDirector.Drop.BIG_XP:
+		failures.append("big Sinag chance must not fall off")
+	if RunDirector.drop_scale(0.0) != 1.0 or RunDirector.drop_scale(1200.0) >= 1.0:
+		failures.append("drop scale should start at 1 and fall")
+
+	# Burrow speed ramps over the run and spikes in a Blood Moon; elite HP grows per elite.
+	var b := RunDirector.new()
+	if b.burrow_speed_mult(0.0) != 1.0 or b.burrow_speed_mult(1200.0) <= b.burrow_speed_mult(600.0):
+		failures.append("burrow speed should start at 1 and rise over the run")
+	var calm: float = b.burrow_speed_mult(600.0)
+	b.add_kills(100)
+	if b.burrow_speed_mult(600.0) <= calm:
+		failures.append("burrow speed should rise during a Blood Moon")
+	if RunDirector.elite_hp_mult(1) != 1.0 or RunDirector.elite_hp_mult(4) <= RunDirector.elite_hp_mult(2):
+		failures.append("elite HP should grow with each elite")
 	if RunDirector.drop_for(false, 0.5) != RunDirector.Drop.NONE:
 		failures.append("most kills drop nothing")
 
@@ -59,4 +82,6 @@ func run() -> Array:
 	var elite := load("res://data/enemies/tiyanak_alpha.tres") as EnemyData
 	if elite == null or not elite.is_elite:
 		failures.append("tiyanak_alpha must be an elite EnemyData")
+	elif elite.ability_interval_max <= 0.0 or elite.max_hp < 600.0:
+		failures.append("the Tiyanak Alpha should be tanky and have charge abilities")
 	return failures

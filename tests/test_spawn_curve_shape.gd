@@ -1,9 +1,8 @@
 extends RefCounted
 ## Guards the shipped spawn curves against authoring mistakes: gaps, jumps and cap blow-ups.
 
-## The M1 prototype scans enemy groups linearly, so keep the worst case modest.
-## Raise this in M2 once pooling and spatial lookup exist.
-const M1_MAX_ALIVE := 300
+## Worst case alive at max pressure. The benchmark holds 1200 enemies at 100+ FPS, so 500 is safe.
+const M1_MAX_ALIVE := 500
 
 
 func run() -> Array:

@@ -5,8 +5,8 @@
 [resource]
 script = ExtResource("1_curve")
 base_xp = 5.0
-linear_per_level = 3.0
-quad_per_level = 0.2
+linear_per_level = 4.0
+quad_per_level = 0.45
 id = &"level_curve_default"
 display_name = "Default level curve (placeholder)"
 schema_version = 1

@@ -31,3 +31,18 @@ const MAX_RADIUS := 40.0
 ## 1.0 or less turns the burst off.
 @export var emerge_speed_mult: float = 1.0
 @export var emerge_burst_seconds: float = 0.0
+
+@export_group("Charge abilities")
+## While chasing, the enemy periodically winds up and then SPRINTS in a straight line or LEAPS
+## onto where the hero stood. Both are telegraphed. 0 for the max interval turns abilities off.
+@export var ability_interval_min: float = 0.0
+@export var ability_interval_max: float = 0.0
+## Chance (0..1) that an ability is a leap rather than a sprint.
+@export var leap_chance: float = 0.4
+@export var sprint_windup_seconds: float = 0.6
+@export var sprint_seconds: float = 0.9
+@export var sprint_speed_mult: float = 3.2
+@export var leap_windup_seconds: float = 0.5
+@export var leap_seconds: float = 0.55
+## How high the leap looks (pixels). Visual only.
+@export var leap_height: float = 46.0
