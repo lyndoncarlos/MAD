@@ -8,6 +8,8 @@ extends Node2D
 
 signal died(enemy: Enemy)
 
+const KNOCKBACK_DECAY := 1000.0
+
 enum State { BURROWED, BURSTING, CHASING, WINDUP, SPRINTING, LEAPING }
 
 ## Burrowed enemies count down their warning this many times faster. Set each tick by the run
@@ -27,6 +29,12 @@ var _state: State = State.CHASING
 var _state_time: float = 0.0
 var _burst_direction: Vector2 = Vector2.RIGHT
 var _flash_left: float = 0.0
+## True while sprinting or leaping. The manager uses it to slam enemies out of the way.
+var is_charging: bool = false
+## Serials already slammed during the current charge, so each victim is hit once.
+var slammed: Dictionary = {}
+## Knockback velocity (pixels per second); decays on its own.
+var knockback: Vector2 = Vector2.ZERO
 var _ability_left: float = 0.0
 var _use_leap: bool = false
 var _charge_direction: Vector2 = Vector2.RIGHT
@@ -44,6 +52,9 @@ func reset(enemy_data: EnemyData, target: Hero) -> void:
 	_flash_left = 0.0
 	_burst_direction = Vector2.RIGHT
 	_ability_left = _roll_ability_delay()
+	is_charging = false
+	slammed.clear()
+	knockback = Vector2.ZERO
 	_state = State.BURROWED if data.spawn_style == EnemyData.SpawnStyle.BURROW else State.CHASING
 	visible = true
 	queue_redraw()
@@ -58,6 +69,9 @@ func is_targetable() -> bool:
 func step(delta: float) -> void:
 	if is_dying or hero == null or not is_instance_valid(hero):
 		return
+	if knockback != Vector2.ZERO:
+		position += knockback * delta
+		knockback = knockback.move_toward(Vector2.ZERO, KNOCKBACK_DECAY * delta)
 	_state_time += delta * (burrow_speed_mult if _state == State.BURROWED else 1.0)
 	match _state:
 		State.BURROWED:
@@ -147,6 +161,8 @@ func _update_windup() -> void:
 	if _state_time < windup:
 		return
 	_state_time = 0.0
+	is_charging = true
+	slammed.clear()
 	if _use_leap:
 		_state = State.LEAPING
 		_leap_velocity = (_charge_target - position) / maxf(data.leap_seconds, 0.05)
@@ -168,6 +184,7 @@ func _update_leap(delta: float) -> void:
 
 
 func _end_ability() -> void:
+	is_charging = false
 	_state = State.CHASING
 	_state_time = 0.0
 	_ability_left = _roll_ability_delay()

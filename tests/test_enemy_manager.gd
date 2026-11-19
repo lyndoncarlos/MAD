@@ -185,6 +185,36 @@ func run() -> Array:
 	if dying_mgr.recycled_count != 0:
 		failures.append("a dying enemy must not be recycled")
 
+	# 12. A charging elite slams lesser enemies once: friendly damage and knockback, never other elites.
+	var slam_mgr: EnemyManager = _manager()
+	var slam_boss_data: EnemyData = _data("slam_boss", 0.0, 26.0)
+	slam_boss_data.is_elite = true
+	slam_boss_data.max_hp = 500.0
+	slam_boss_data.slam_damage = 6.0
+	slam_boss_data.slam_knockback = 300.0
+	var slam_boss: Enemy = slam_mgr.spawn(slam_boss_data, Vector2.ZERO)
+	var slam_victim: Enemy = slam_mgr.spawn(grunt, Vector2(30.0, 0.0))
+	var slam_bystander: Enemy = slam_mgr.spawn(grunt, Vector2(400.0, 0.0))
+	var slam_other_elite: Enemy = slam_mgr.spawn(slam_boss_data, Vector2(-30.0, 0.0))
+	slam_mgr.step(0.016)  # builds the grid
+	slam_boss.is_charging = true
+	for i in 6:
+		slam_mgr.step(0.016)
+	if slam_victim.hp != 4.0:
+		failures.append("slam should hit the slam_victim exactly once for its damage (hp %s)" % slam_victim.hp)
+	if slam_victim.knockback == Vector2.ZERO and slam_victim.position.x <= 30.0:
+		failures.append("slam should knock the slam_victim away")
+	if slam_bystander.hp != 10.0:
+		failures.append("enemies out of reach must not be slammed")
+	if slam_other_elite.hp != 500.0:
+		failures.append("elites must not slam each other")
+	slam_boss.is_charging = false
+	var slam_calm_hp: float = slam_victim.hp
+	for i in 6:
+		slam_mgr.step(0.016)
+	if slam_victim.hp != slam_calm_hp:
+		failures.append("no slam damage when the elite is not charging")
+
 	for node in _to_free:
 		node.free()
 	return failures

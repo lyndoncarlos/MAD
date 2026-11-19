@@ -32,6 +32,8 @@ const SEPARATION_MAX_STEP := 6.0
 const RECYCLE_DISTANCE := 1400.0
 ## The distance check runs every N ticks (about 6 times a second at 60 Hz).
 const RECYCLE_CHECK_EVERY := 10
+## Extra reach (pixels) around a charging enemy's body that still counts as a slam hit.
+const SLAM_REACH := 8.0
 
 var hero: Hero
 ## Callable(enemy_data: EnemyData) -> Vector2: a world position near the hero for a recycled
@@ -110,6 +112,8 @@ func step(delta: float) -> void:
 	var t0: int = Time.get_ticks_usec()
 	for enemy in _active:
 		enemy.step(delta)
+		if enemy.is_charging:
+			_slam(enemy)
 	if _tick % RECYCLE_CHECK_EVERY == 0:
 		_recycle_far()
 	var t1: int = Time.get_ticks_usec()
@@ -128,6 +132,29 @@ func step(delta: float) -> void:
 	last_release_usec = t3 - t2
 	last_grid_usec = t4 - t3
 	last_total_usec = t4 - t0
+
+
+## A charging enemy (sprint or leap) hits every other non-elite enemy it runs into: friendly
+## damage plus a knockback away from it. Each victim is hit once per charge. Uses the grid, which
+## may be one tick old, so victims are matched by serial.
+func _slam(charger: Enemy) -> void:
+	if charger.data.slam_damage <= 0.0 or grid.count() == 0:
+		return
+	var reach: float = charger.data.radius + _grid_max_radius + SLAM_REACH
+	var found: Array = []
+	grid.query_circle(charger.position, reach, found)
+	for victim: Enemy in found:
+		if victim == charger or victim.data.is_elite or victim.is_dying or not victim.is_targetable():
+			continue
+		if charger.slammed.has(victim.serial):
+			continue
+		var offset: Vector2 = victim.position - charger.position
+		if offset.length() > charger.data.radius + victim.data.radius + SLAM_REACH:
+			continue
+		charger.slammed[victim.serial] = true
+		var away: Vector2 = offset.normalized() if offset.length() > 0.01 else Vector2.RIGHT
+		victim.knockback = away * charger.data.slam_knockback
+		victim.take_damage(charger.data.slam_damage)
 
 
 ## Resets every live enemy that is too far from the hero and puts it back near the hero.

@@ -46,3 +46,7 @@ const MAX_RADIUS := 40.0
 @export var leap_seconds: float = 0.55
 ## How high the leap looks (pixels). Visual only.
 @export var leap_height: float = 46.0
+## While sprinting or leaping, other (non-elite) enemies touched on the way take this much
+## damage and are knocked away. 0 turns the slam off.
+@export var slam_damage: float = 0.0
+@export var slam_knockback: float = 420.0

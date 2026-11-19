@@ -10,10 +10,31 @@ const COLLECT_DISTANCE := 18.0
 var drop: int = RunDirector.Drop.HERB
 var hero: Hero
 
+var _attracted: bool = false
+var _speed: float = 0.0
+
+
+func _ready() -> void:
+	# Big Sinag acts like Sinag: the magnet pulls it in and it drifts to the hero inside pickup range.
+	if drop == RunDirector.Drop.BIG_XP:
+		add_to_group(&"pickups")
+
+
+## Magnet effect: only big Sinag can be pulled in (herbs, magnets and chests stay put).
+func attract() -> void:
+	if drop == RunDirector.Drop.BIG_XP:
+		_attracted = true
+
 
 func _physics_process(_delta: float) -> void:
 	if hero == null or not is_instance_valid(hero) or hero.is_dead():
 		return
+	if drop == RunDirector.Drop.BIG_XP:
+		if not _attracted and global_position.distance_to(hero.global_position) <= hero.pickup_radius():
+			_attracted = true
+		if _attracted:
+			_speed = minf(_speed + SinagPickup.ACCELERATION * _delta, SinagPickup.MAX_SPEED)
+			global_position = global_position.move_toward(hero.global_position, _speed * _delta)
 	var reach: float = COLLECT_DISTANCE
 	if drop == RunDirector.Drop.CHEST:
 		reach += 8.0

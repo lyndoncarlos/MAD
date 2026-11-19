@@ -216,8 +216,8 @@ func _on_item_collected(drop: int) -> void:
 			hero.heal(HERB_HEAL)
 		RunDirector.Drop.MAGNET:
 			for node in get_tree().get_nodes_in_group(&"pickups"):
-				if node is SinagPickup:
-					(node as SinagPickup).attract()
+				if node is SinagPickup or node is ItemPickup:
+					node.attract()
 			_show_banner("Sinag magnet!", 1.5)
 		RunDirector.Drop.BIG_XP:
 			run_state.add_xp(maxf(BIG_XP_MINIMUM, run_state.xp_needed() * BIG_XP_FRACTION))
