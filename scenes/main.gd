@@ -72,6 +72,7 @@ func _ready() -> void:
 	hero.enemies = enemies
 	add_child(hero)
 	enemies.setup(hero)
+	enemies.recycle_picker = _recycle_position
 	enemies.enemy_died.connect(_on_enemy_died)
 	hero.died.connect(_on_hero_died)
 	_grant_weapon(hero_data.starting_weapon_id, 1)
@@ -136,6 +137,18 @@ func _spawn_order(order: SpawnOrder) -> void:
 				RngService.float_range(-PACK_SPREAD, PACK_SPREAD, RunRng.SPAWN)
 			)
 		_spawn_enemy(enemy_data, anchor + offset)
+
+
+## Where a far-off enemy is re-placed: the same ring (or burrow distance) a fresh spawn would use,
+## drawn from the seeded spawn stream so recycling stays reproducible.
+func _recycle_position(enemy_data: EnemyData) -> Vector2:
+	var angle: float = RngService.float_range(0.0, TAU, RunRng.SPAWN)
+	var distance: float = SPAWN_RING_RADIUS
+	if enemy_data.spawn_style == EnemyData.SpawnStyle.BURROW:
+		distance = RngService.float_range(
+			enemy_data.burrow_min_distance, enemy_data.burrow_max_distance, RunRng.SPAWN
+		)
+	return hero.global_position + SpawnPlanner.ring_offset(angle, distance)
 
 
 func _spawn_elite() -> void:

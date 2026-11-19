@@ -127,6 +127,64 @@ func run() -> Array:
 	if near.size() != 1:
 		failures.append("an emerged enemy should appear in the grid, found %d" % near.size())
 
+	# 9. Far-off enemies are recycled (reset and re-placed), never despawned or counted as kills.
+	var rec: EnemyManager = EnemyManager.new()
+	var rec_hero := Hero.new()
+	_to_free.append(rec_hero)
+	_to_free.append(rec)
+	rec_hero.position = Vector2.ZERO
+	rec.setup(rec_hero)
+	var picks: Array = []
+	rec.recycle_picker = func(_d: EnemyData) -> Vector2:
+		picks.append(1)
+		return Vector2(300.0, 0.0)
+	var rec_deaths: Array = []
+	rec.enemy_died.connect(func(_e: Enemy) -> void: rec_deaths.append(1))
+	var near_enemy: Enemy = rec.spawn(grunt, Vector2(100.0, 200.0))
+	var far_enemy: Enemy = rec.spawn(grunt, Vector2(EnemyManager.RECYCLE_DISTANCE + 500.0, 0.0))
+	far_enemy.hp = 3.0
+	var far_serial: int = far_enemy.serial
+	for i in EnemyManager.RECYCLE_CHECK_EVERY:
+		rec.step(0.016)
+	if picks.size() != 1 or rec.recycled_count != 1:
+		failures.append("exactly one far enemy should be recycled, picker calls=%d recycled=%d" % [picks.size(), rec.recycled_count])
+	if far_enemy.position.distance_to(Vector2(300.0, 0.0)) > 20.0:  # separation may nudge it
+		failures.append("the far enemy should be re-placed near the hero, it is at %s" % far_enemy.position)
+	if far_enemy.hp != grunt.max_hp or far_enemy.serial == far_serial:
+		failures.append("a recycled far enemy must be reset with a new serial")
+	if near_enemy.position.distance_to(Vector2(100.0, 200.0)) > 20.0:
+		failures.append("an enemy inside the range must not be moved")
+	if rec.alive_count() != 2 or rec.total_created != 2 or rec.pool_size() != 0:
+		failures.append("recycling must not change counts: alive=%d created=%d pool=%d" % [rec.alive_count(), rec.total_created, rec.pool_size()])
+	if rec_deaths.size() != 0:
+		failures.append("recycling is not a kill: no died signal expected, got %d" % rec_deaths.size())
+
+	# 10. Without a picker nothing is recycled.
+	var idle: EnemyManager = EnemyManager.new()
+	var idle_hero := Hero.new()
+	_to_free.append(idle_hero)
+	_to_free.append(idle)
+	idle.setup(idle_hero)
+	var stray: Enemy = idle.spawn(grunt, Vector2(EnemyManager.RECYCLE_DISTANCE + 500.0, 0.0))
+	for i in EnemyManager.RECYCLE_CHECK_EVERY:
+		idle.step(0.016)
+	if stray.position.x < EnemyManager.RECYCLE_DISTANCE or idle.recycled_count != 0:
+		failures.append("with no recycle_picker the enemy must stay where it is")
+
+	# 11. Dying enemies are never recycled.
+	var dying_mgr: EnemyManager = EnemyManager.new()
+	var dying_hero := Hero.new()
+	_to_free.append(dying_hero)
+	_to_free.append(dying_mgr)
+	dying_mgr.setup(dying_hero)
+	dying_mgr.recycle_picker = func(_d: EnemyData) -> Vector2: return Vector2(300.0, 0.0)
+	var doomed: Enemy = dying_mgr.spawn(grunt, Vector2(EnemyManager.RECYCLE_DISTANCE + 500.0, 0.0))
+	doomed.take_damage(9999.0)
+	for i in EnemyManager.RECYCLE_CHECK_EVERY:
+		dying_mgr.step(0.016)
+	if dying_mgr.recycled_count != 0:
+		failures.append("a dying enemy must not be recycled")
+
 	for node in _to_free:
 		node.free()
 	return failures

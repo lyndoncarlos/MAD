@@ -38,7 +38,7 @@ godot --headless --script res://tests/run_tests.gd
 | `test_weapon_dps` | DPS estimates count damage upgrades and ignore movement/pickup passives |
 | `test_spawn_curve_shape` | the shipped spawn curve has no gaps, jumps or cap blow-ups |
 | `test_spatial_grid` | grid queries match a brute-force scan exactly (400 points, 100 queries), borders, clear |
-| `test_enemy_manager` | pooling reuses nodes, recycled enemies are reset, counts, separation, burrowed enemies stay out of the grid |
+| `test_enemy_manager` | pooling reuses nodes, recycled enemies are reset, counts, separation, burrowed enemies stay out of the grid, far-off enemies are recycled near the hero (not despawned, not a kill) |
 | `test_separation` | push-apart maths on packed arrays matches a brute-force reference; slicing, caps, stacked circles |
 | `test_benchmark_stats` | percentiles, phase stats, simulation speed and the PASS/FAIL verdict |
 

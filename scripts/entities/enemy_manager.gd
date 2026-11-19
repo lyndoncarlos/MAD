@@ -10,6 +10,13 @@ extends Node2D
 ##  - separation handles 1/SEPARATION_SLICES of the enemies per tick, with proportionally
 ##    stronger pushes, so every enemy is still corrected regularly
 ##  - counts are kept incrementally and the dead-enemy sweep only runs when something died
+##
+## Far-off enemies are RECYCLED, never despawned: an enemy that falls more than
+## RECYCLE_DISTANCE behind the hero is reset and re-placed near the hero, so the horde stays
+## in contact. It is not a kill: no died signal, no XP or drops, and the alive counts do not
+## change. Where it lands comes from `recycle_picker`, which the run scene points at the
+## seeded spawn stream (the manager itself has no randomness). Without a picker, nothing
+## is recycled.
 
 signal enemy_died(enemy: Enemy)
 
@@ -20,8 +27,18 @@ const SEPARATION_SLICES := 2
 ## Fraction of the overlap resolved per correction, and a cap on how far one enemy is pushed.
 const SEPARATION_STRENGTH := 0.5
 const SEPARATION_MAX_STEP := 6.0
+## An enemy farther than this from the hero is recycled. Keep it well outside the spawn ring
+## (760) and the screen, and inside the grid (GRID_HALF_EXTENT).
+const RECYCLE_DISTANCE := 1400.0
+## The distance check runs every N ticks (about 6 times a second at 60 Hz).
+const RECYCLE_CHECK_EVERY := 10
 
 var hero: Hero
+## Callable(enemy_data: EnemyData) -> Vector2: a world position near the hero for a recycled
+## enemy. Set by the run scene. Leave unset to disable recycling.
+var recycle_picker: Callable = Callable()
+## How many enemies were recycled so far (for logs and tests).
+var recycled_count: int = 0
 var grid: SpatialGrid = SpatialGrid.new(CELL_SIZE, GRID_HALF_EXTENT)
 ## How many Enemy nodes were ever created. Stays flat once the pool is warm.
 var total_created: int = 0
@@ -93,6 +110,8 @@ func step(delta: float) -> void:
 	var t0: int = Time.get_ticks_usec()
 	for enemy in _active:
 		enemy.step(delta)
+	if _tick % RECYCLE_CHECK_EVERY == 0:
+		_recycle_far()
 	var t1: int = Time.get_ticks_usec()
 	_separate()
 	var t2: int = Time.get_ticks_usec()
@@ -109,6 +128,26 @@ func step(delta: float) -> void:
 	last_release_usec = t3 - t2
 	last_grid_usec = t4 - t3
 	last_total_usec = t4 - t0
+
+
+## Resets every live enemy that is too far from the hero and puts it back near the hero.
+## Iterates in spawn order, so the seeded picker is consulted in a repeatable order.
+func _recycle_far() -> void:
+	if not recycle_picker.is_valid() or hero == null or not is_instance_valid(hero):
+		return
+	var limit_sq: float = RECYCLE_DISTANCE * RECYCLE_DISTANCE
+	var hero_position: Vector2 = hero.position
+	for enemy in _active:
+		if enemy.is_dying:
+			continue
+		if enemy.position.distance_squared_to(hero_position) <= limit_sq:
+			continue
+		var where: Vector2 = recycle_picker.call(enemy.data)
+		enemy.reset(enemy.data, hero)
+		enemy.serial = _next_serial
+		_next_serial += 1
+		enemy.position = where
+		recycled_count += 1
 
 
 func _separate() -> void:
