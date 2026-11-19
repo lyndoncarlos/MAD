@@ -16,7 +16,7 @@ There are three layers, from the clock to the player:
 
 ```
 pressure = 1 + level_bonus_per_level * (level - 1)
-             + power_bonus * (sqrt(your_dps / starting_dps) - 1)
+			 + power_bonus * (sqrt(your_dps / starting_dps) - 1)
 pressure is clamped to [min_pressure, max_pressure]   (defaults 1.0 to 2.0)
 ```
 Pressure multiplies **both the spawn rate and the alive cap**. Pack size grows with time only.
